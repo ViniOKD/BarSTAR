@@ -1,15 +1,17 @@
-# Python
+# configurações locais
+.env
+
+# python
 .venv/
 __pycache__/
 *.py[cod]
-
-# Configurações locais
-.env
-
-# Banco SQLite local
 db.sqlite3
 
-# Arquivos
+# frontend
+node_modules/
+dist/
+
+# arquivos
 *.jar
 *.war
 *.nar
