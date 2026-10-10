@@ -1,11 +1,17 @@
-import Header from "./components/Header";
+import { useState } from "react";
+import Sidebar from "./components/Sidebar";
 
 export default function App() {
+  const [paginaAtual, setPaginaAtual] = useState("/");
+
   return (
     <>
-      <Header paginaAtual="/" />
+      <Sidebar paginaAtual={paginaAtual} onNavegar={setPaginaAtual} />
       <main className="ml-64 p-6">
-        <h1>Bem-vindo ao BarStar</h1>
+        {paginaAtual === "/" && <h1>Início</h1>}
+        {paginaAtual === "/cardapio" && <h1>Cardápio</h1>}
+        {paginaAtual === "/promocoes" && <h1>Promoções</h1>}
+        {paginaAtual === "/comanda" && <h1>Comanda</h1>}
       </main>
     </>
   );
