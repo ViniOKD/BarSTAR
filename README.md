@@ -158,6 +158,8 @@ http://localhost:8000/api/docs/
 - Testa endpoints direto no browser
 - Autenticação via token (se configurado)
 - Mostra request/response examples
+
+
 ReDoc (documentação limpa)
 http://localhost:8000/api/redoc/
 - Visualização apenas para leitura
