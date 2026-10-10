@@ -3,6 +3,8 @@
 @theme {
   --color-fundo: #f6f2e8;
   --color-destaque: #fff9e7;
+  --color-header: #373F47;
+  --font-header: "Montserrat Alternates", sans-serif;
   }
 
 * {
@@ -11,5 +13,7 @@
 
 body {
   margin: 0;
+  font-family: 'Montserrat', sans-serif;
+  background-color: var(--color-fundo);
 }
 

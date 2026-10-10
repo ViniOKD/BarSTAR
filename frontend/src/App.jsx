@@ -1,44 +1,12 @@
-import { useEffect, useState } from 'react'
+import Header from "./components/Header";
 
-function App() {
-  const [message, setMessage] = useState('Verificando conexão...')
-
-  useEffect(() => {
-    let active = true
-
-    async function checkConnection() {
-      try {
-        const response = await fetch('/api/health/')
-
-        if (!response.ok) {
-          throw new Error(`Erro HTTP ${response.status}`)
-        }
-
-        const data = await response.json()
-
-        if (active) {
-          setMessage(data.message)
-        }
-      } catch {
-        if (active) {
-          setMessage('Não foi possível conectar à API.')
-        }
-      }
-    }
-
-    checkConnection()
-
-    return () => {
-      active = false
-    }
-  }, [])
-
+export default function App() {
   return (
-    <main>
-      <h1>BARStar</h1>
-      <p>{message}</p>
-    </main>
-  )
+    <>
+      <Header paginaAtual="/" />
+      <main className="ml-64 p-6">
+        <h1>Bem-vindo ao BarStar</h1>
+      </main>
+    </>
+  );
 }
-
-export default App
