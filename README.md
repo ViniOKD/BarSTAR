@@ -149,6 +149,21 @@ editar pelo editor e visualizar as mudanças durante o desenvolvimento.
 Cada desenvolvedor tem seu próprio banco local.
 Os dados do MySQL ficam em um volume Docker.
 
+## Documentação da API (OpenAPI / Swagger / ReDoc)
+
+Este projeto usa **[drf-spectacular](https://drf-spectacular.readthedocs.io/)** para gerar a especificação OpenAPI 3.1 automaticamente a partir do código Django REST Framework.
+
+Swagger UI (interativo)
+http://localhost:8000/api/docs/
+- Testa endpoints direto no browser
+- Autenticação via token (se configurado)
+- Mostra request/response examples
+ReDoc (documentação limpa)
+http://localhost:8000/api/redoc/
+- Visualização apenas para leitura
+- Melhor para compartilhar com frontend/mobile
+- Busca, navegação por tags, modelos expansíveis
+
 ## Observações
 
 O comando `docker compose down` preserva os dados.
