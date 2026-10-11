@@ -23,7 +23,7 @@ class Gerente(models.Model):
 
 
 class Garcom(models.Model):
-    id = models.BigAutoField(primary_key=True)  # id_garcom
+    id = models.BigAutoField(primary_key=True)  # id_garcom~
     data_efetivacao = models.DateTimeField(auto_now_add=True)
     nome = models.CharField(max_length=50)
     tel = models.CharField(max_length=15, unique=True)
@@ -161,6 +161,7 @@ class Item(models.Model):
         choices=TipoItem.choices,
         default=TipoItem.PRATO,
     )
+    imagem = models.ImageField(upload_to='itens/', blank=True, default='itens/default.jpg')  
 
     # Atributos de Prato (null/blank para bebidas)
     peso = models.FloatField(null=True, blank=True)
