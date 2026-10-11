@@ -127,7 +127,6 @@ class Categoria(models.Model):
     tipo_categoria = models.CharField(
         max_length=10,
         choices=TipoCategoria.choices,
-        default=TipoCategoria.PRATO,
     )
 
     class Meta:
