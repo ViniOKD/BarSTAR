@@ -1,7 +1,12 @@
 from django.db import connection
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
-from rest_framework import viewsets
+
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
+
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
     Item, Pedido, ItensPedido, Promocao, ItensPromocao,
@@ -48,6 +53,24 @@ class GarcomViewSet(viewsets.ModelViewSet):
 class MesaViewSet(viewsets.ModelViewSet):
     queryset = Mesa.objects.all()
     serializer_class = MesaSerializer
+
+    @action(detail=True, methods=['post'], url_path='abrir-comanda')
+    def abrir_comanda(self, request, pk=None):
+        mesa = self.get_object()
+        if not mesa.ativo:
+            raise ValidationError({'detail': 'Mesa não está ativa.'})
+        
+        mesa_aberta = mesa.pedidos.filter(concluido=False).first() 
+        if mesa_aberta: # se a mesa estiver com um pedido em aberto, retorna o pedido existente
+            return Response(
+                PedidoSerializer(aberta).data, status=status.HTTP_200_OK
+            )
+        cozinha = Cozinha.objects.first()  # seleciona a primeira cozinha disponível - nao sei se ta certo - REVER LOGICA 
+        pedido = Pedido.objects.create(mesa=mesa, cozinha=cozinha) # cria o pedido
+        return Response(
+            PedidoSerializer(pedido).data, status=status.HTTP_201_CREATED
+        )
+        
 
 class CozinhaViewSet(viewsets.ModelViewSet):
     queryset = Cozinha.objects.all()
