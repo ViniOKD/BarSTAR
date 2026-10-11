@@ -4,7 +4,7 @@ const links = [
   { nome: "Home", href: "/" },
   { nome: "Cardápio", href: "/cardapio" },
   { nome: "Promoções", href: "/promocoes" },
-  { nome: "Conta", href: "/conta" },
+  { nome: "Abrir Comanda", href: "/abrir-comanda" },
   { nome: "Carrinho", href: "/carrinho" },
 ];
 

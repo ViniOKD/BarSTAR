@@ -1,9 +1,12 @@
 from django.db import connection
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
-from .serializers import PedidoSerializer, CategoriaSerializer
+from .serializers import PedidoSerializer, CategoriaSerializer, AbrirComandaSerializer
 from rest_framework import viewsets
-from .models import Pedido, Categoria
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Pedido, Categoria, Comanda, Mesa
 
 @require_GET
 def health(request):
@@ -24,3 +27,51 @@ class PedidoViewSet(viewsets.ModelViewSet):
 class CategoriaViewSet(viewsets.ModelViewSet):
     queryset = Categoria.objects.all()
     serializer_class = CategoriaSerializer
+
+class AbrirComandaView(APIView):
+    def post(self, request):
+        serializer = AbrirComandaSerializer(data=request.data)
+        
+        #Se CPF ou Telefone forem inválidos, retorna erro 400
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        cpf = serializer.validated_data['cpf']
+        telefone = serializer.validated_data['telefone']
+        id_mesa = serializer.validated_data.get('id_mesa', 1)
+
+        # Busca a mesa no banco
+        try:
+            mesa = Mesa.objects.get(id=id_mesa)
+        except Mesa.DoesNotExist:
+            return Response(
+                {"erro": "Mesa informada não existe no sistema."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verifica se a mesa já possui comanda ativa
+        comanda_ativa = Comanda.objects.filter(mesa=mesa, ativa=True).first()
+        if comanda_ativa:
+            return Response(
+                {
+                    "mensagem": "Esta mesa já possui uma comanda ativa.",
+                    "id_comanda": comanda_ativa.id
+                },
+                status=status.HTTP_200_OK
+            )
+
+        # Cria a nova comanda no MySQL
+        nova_comanda = Comanda.objects.create(
+            cpf=cpf,
+            telefone=telefone,
+            mesa=mesa,
+            ativa=True
+        )
+
+        return Response(
+            {
+                "mensagem": "Comanda aberta com sucesso!",
+                "id_comanda": nova_comanda.id
+            },
+            status=status.HTTP_201_CREATED
+        )

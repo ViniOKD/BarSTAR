@@ -303,3 +303,24 @@ class ItensPromocao(models.Model):
 
     def __str__(self):
         return f'{self.item} na {self.promocao}'
+
+
+class Comanda(models.Model):
+    id = models.BigAutoField(primary_key=True)  # id_comanda
+    cpf = models.CharField(max_length=11)
+    telefone = models.CharField(max_length=15)
+    ativa = models.BooleanField(default=True)
+    data_abertura = models.DateTimeField(auto_now_add=True)
+    mesa = models.ForeignKey(
+        Mesa,
+        on_delete=models.PROTECT,
+        related_name='comandas',
+        db_column='id_mesa',
+    )
+
+    class Meta:
+        db_table = 'comanda'
+        ordering = ['-data_abertura']
+
+    def __str__(self):
+        return f'Comanda #{self.id} - Mesa {self.mesa_id}'
