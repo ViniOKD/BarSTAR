@@ -77,8 +77,15 @@ class CozinhaViewSet(viewsets.ModelViewSet):
     serializer_class = CozinhaSerializer
 
 class ItemViewSet(viewsets.ModelViewSet):
-    queryset = Item.objects.all()
+    queryset = Item.objects.select_related('categoria')
     serializer_class = ItemSerializer
+
+    def get_queryset(self):
+        itens = super().get_queryset()
+        tipo = self.request.query_params.get('tipo_categoria')
+        if tipo:
+            itens = itens.filter(categoria__tipo_categoria=tipo)
+        return itens
 
 class ItensPedidoViewSet(viewsets.ModelViewSet):
     queryset = ItensPedido.objects.all()
