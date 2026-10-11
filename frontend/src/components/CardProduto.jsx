@@ -20,8 +20,6 @@ export default function CardProduto({ produto, onClick }) {
     >
       <img
         src={imagem || "/media/itens/default.jpg"}
-        alt=""
-        loading="lazy"
         className="h-full w-[42%] shrink-0 object-cover"
       />
 

@@ -7,7 +7,7 @@ const linksPrincipais = [
   { nome: "Promoções", href: "/promocoes" },
 ];
 
-// TODO: carregar as categorias pela API.
+
 const categorias = [
   { nome: "Bebidas", id: "bebidas" },
   { nome: "Comidas", id: "comidas" },

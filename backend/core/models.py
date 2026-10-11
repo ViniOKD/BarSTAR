@@ -160,7 +160,7 @@ class Item(models.Model):
         related_name='itens',
         db_column='id_gerente',
     )
-    imagem = models.ImageField(upload_to='itens/', blank=True, default='itens/default.jpg')  
+    imagem = models.ImageField(upload_to='itens/', blank=True, default='itens/default.png')  
 
     # Atributos de Prato (null/blank para bebidas)
     peso = models.FloatField(null=True, blank=True)
