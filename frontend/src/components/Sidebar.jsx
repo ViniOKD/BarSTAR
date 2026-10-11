@@ -11,7 +11,6 @@ const linksPrincipais = [
 const categorias = [
   { nome: "Bebidas", id: "bebidas" },
   { nome: "Comidas", id: "comidas" },
-  { nome: "Para acompanhar", id: "acompanhamentos" },
 ];
 
 const estiloLink =
