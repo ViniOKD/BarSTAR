@@ -2,10 +2,12 @@ import { useState } from "react";
 import Sidebar from "./components/Sidebar";
 import Bebidas from "./pages/Bebidas";
 import Comidas from "./pages/Comidas";
+import ModalProduto from "./components/ModalProduto";
 
 export default function App() {
   const [paginaAtual, setPaginaAtual] = useState("/");
   const [categoriaAtual, setCategoriaAtual] = useState("");
+  const [produtoSelecionado, setProdutoSelecionado] = useState(null);
 
   return (
     <>
@@ -28,14 +30,21 @@ export default function App() {
                   : "Cardápio"}
             </h1>
 
-            {categoriaAtual === "bebidas" && <Bebidas />}
-            {categoriaAtual === "comidas" && <Comidas />}
+            {categoriaAtual === "bebidas" && <Bebidas onSelecionarProduto={setProdutoSelecionado} />}
+            {categoriaAtual === "comidas" && <Comidas onSelecionarProduto={setProdutoSelecionado} />}
           </>
         )}
 
         {paginaAtual === "/promocoes" && <h1>Promoções</h1>}
         {paginaAtual === "/comanda" && <h1>Comanda</h1>}
       </main>
+      {produtoSelecionado && (
+        <ModalProduto
+          key={produtoSelecionado.id}
+          produto={produtoSelecionado}
+          onFechar={() => setProdutoSelecionado(null)}
+        />
+      )}
     </>
   );
 }

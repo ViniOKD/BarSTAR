@@ -1,9 +1,4 @@
-function formatarPreco(valor) {
-  return Number(valor).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-}
+import formatarPreco from "../utils/formatarPreco";
 
 export default function CardProduto({ produto, onClick }) {
   const {

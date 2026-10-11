@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import CardProduto from "../components/CardProduto";
 import FiltroCategorias from "../components/FiltroCategorias";
 
-export default function Bebidas() {
+export default function Bebidas({ onSelecionarProduto }) {
   const [bebidas, setBebidas] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -57,7 +57,7 @@ export default function Bebidas() {
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))] gap-4">
         {bebidasFiltradas.map((produto) => (
-          <CardProduto key={produto.id} produto={produto} />
+          <CardProduto key={produto.id} produto={produto} onClick={onSelecionarProduto} />
         ))}
       </div>
 
