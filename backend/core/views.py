@@ -3,10 +3,8 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.exceptions import ValidationError
 
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
@@ -46,11 +44,11 @@ class CategoriaViewSet(viewsets.ModelViewSet):
 class AbrirComandaView(APIView):
     def post(self, request):
         serializer = AbrirComandaSerializer(data=request.data)
-        
+
         #Se CPF ou Telefone forem inválidos, retorna erro 400
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+
         cpf = serializer.validated_data['cpf']
         telefone = serializer.validated_data['telefone']
         id_mesa = serializer.validated_data['id_mesa']
@@ -60,8 +58,14 @@ class AbrirComandaView(APIView):
             mesa = Mesa.objects.get(id=id_mesa)
         except Mesa.DoesNotExist:
             return Response(
-                {"erro": "Mesa informada não existe no sistema."}, 
+                {"erro": "Mesa informada não existe no sistema."},
                 status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not mesa.ativo:
+            return Response(
+                {'erro': 'Mesa não está ativa.'},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         # Verifica se a mesa já possui comanda ativa
@@ -100,27 +104,6 @@ class MesaViewSet(viewsets.ModelViewSet):
     queryset = Mesa.objects.all()
     serializer_class = MesaSerializer
 
-    @action(detail=True, methods=['post'], url_path='abrir-comanda')
-    def abrir_comanda(self, request, pk=None):
-        mesa = self.get_object()
-        if not mesa.ativo:
-            raise ValidationError({'detail': 'Mesa não está ativa.'})
-        
-        comanda = mesa.comandas.filter(ativa=True).first()
-        if comanda is None:
-            raise ValidationError({'detail': 'Abra uma comanda para a mesa antes de criar um pedido.'})
-
-        pedido_aberto = comanda.pedidos.filter(concluido=False).first()
-        if pedido_aberto:
-            return Response(
-                PedidoSerializer(pedido_aberto).data, status=status.HTTP_200_OK
-            )
-        cozinha = Cozinha.objects.first()  # seleciona a primeira cozinha disponível - nao sei se ta certo - REVER LOGICA 
-        pedido = Pedido.objects.create(comanda=comanda, cozinha=cozinha)
-        return Response(
-            PedidoSerializer(pedido).data, status=status.HTTP_201_CREATED
-        )
-        
 
 class CozinhaViewSet(viewsets.ModelViewSet):
     queryset = Cozinha.objects.all()
