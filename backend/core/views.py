@@ -1,4 +1,4 @@
-from django.db import connection
+from django.db import connection, transaction
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
@@ -42,7 +42,7 @@ class CategoriaViewSet(viewsets.ModelViewSet):
     serializer_class = CategoriaSerializer
 
 class AbrirComandaView(APIView):
-    def post(self, request):
+    def post(self, request, id_mesa):
         serializer = AbrirComandaSerializer(data=request.data)
 
         #Se CPF ou Telefone forem inválidos, retorna erro 400
@@ -51,38 +51,37 @@ class AbrirComandaView(APIView):
 
         cpf = serializer.validated_data['cpf']
         telefone = serializer.validated_data['telefone']
-        id_mesa = serializer.validated_data['id_mesa']
 
-        # Busca a mesa no banco
-        try:
-            mesa = Mesa.objects.get(id=id_mesa)
-        except Mesa.DoesNotExist:
-            return Response(
-                {"erro": "Mesa informada não existe no sistema."},
-                status=status.HTTP_404_NOT_FOUND
+        with transaction.atomic():
+            # Bloqueia a mesa até terminar a abertura, evitando comandas simultâneas.
+            try:
+                mesa = Mesa.objects.select_for_update().get(id=id_mesa)
+            except Mesa.DoesNotExist:
+                return Response(
+                    {"erro": "Mesa informada não existe no sistema."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            if not mesa.ativo:
+                return Response(
+                    {'erro': 'Mesa não está ativa.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Verifica se a mesa já possui comanda ativa
+            if Comanda.objects.filter(mesa=mesa, ativa=True).exists():
+                return Response(
+                    {"erro": "Esta mesa já possui uma comanda em andamento. Procure o garçom para fechar a comanda atual."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Cria a nova comanda no MySQL
+            nova_comanda = Comanda.objects.create(
+                cpf=cpf,
+                telefone=telefone,
+                mesa=mesa,
+                ativa=True
             )
-
-        if not mesa.ativo:
-            return Response(
-                {'erro': 'Mesa não está ativa.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Verifica se a mesa já possui comanda ativa
-        comanda_ativa = Comanda.objects.filter(mesa=mesa, ativa=True).first()
-        if comanda_ativa:
-            return Response(
-                {"erro": "Esta mesa já possui uma comanda em andamento. Procure o garçom para fechar a comanda atual."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Cria a nova comanda no MySQL
-        nova_comanda = Comanda.objects.create(
-            cpf=cpf,
-            telefone=telefone,
-            mesa=mesa,
-            ativa=True
-        )
 
         return Response(
             {

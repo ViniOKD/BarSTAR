@@ -20,6 +20,6 @@ router.register(r'promocoes', PromocaoViewSet, basename='promocao')
 
 urlpatterns = [
     path("health/", health, name="health"),
-    path('comandas/abrir/', AbrirComandaView.as_view(), name='abrir-comanda'),
+    path('mesas/<int:id_mesa>/abrir-comanda/', AbrirComandaView.as_view(), name='abrir-comanda'),
     path('', include(router.urls))
 ]

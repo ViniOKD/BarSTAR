@@ -104,10 +104,8 @@ class Comanda(models.Model):
         db_table = 'comanda'
         ordering = ['-data_abertura']
 
-        # Garante que uma mesa só pode ter no máximo uma comanda ativa ao mesmo tempo
-        constraints = [
-            UniqueConstraint(fields=['mesa'], condition=Q(ativa=True), name='unica_comanda_ativa_por_mesa')
-        ]
+        # A abertura valida a comanda ativa com a mesa bloqueada na transação.
+        # MySQL não suporta UniqueConstraint com condition.
 
 
     def __str__(self):

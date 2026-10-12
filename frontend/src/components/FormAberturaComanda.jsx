@@ -99,7 +99,7 @@ export function FormAberturaComanda({ aoSucesso }) {
 
     try {
       // CONEXÃO COM O BACK-END (DJANGO)
-      const resposta = await fetch('http://localhost:8000/api/comandas/abrir/', {
+      const resposta = await fetch(`/api/mesas/${parseInt(idMesa, 10)}/abrir-comanda/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,7 +107,6 @@ export function FormAberturaComanda({ aoSucesso }) {
         body: JSON.stringify({
           cpf: apenasNumerosCPF,
           telefone: apenasNumerosTel,
-          id_mesa: parseInt(idMesa, 10),
         }),
       });
 
