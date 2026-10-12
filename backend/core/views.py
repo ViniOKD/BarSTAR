@@ -36,7 +36,7 @@ def health(request):
     })
 
 class PedidoViewSet(viewsets.ModelViewSet):
-    queryset = Pedido.objects.all()
+    queryset = Pedido.objects.select_related('comanda__mesa', 'cozinha')
     serializer_class = PedidoSerializer 
 
 class CategoriaViewSet(viewsets.ModelViewSet):
@@ -106,13 +106,17 @@ class MesaViewSet(viewsets.ModelViewSet):
         if not mesa.ativo:
             raise ValidationError({'detail': 'Mesa não está ativa.'})
         
-        mesa_aberta = mesa.pedidos.filter(concluido=False).first() 
-        if mesa_aberta: # se a mesa estiver com um pedido em aberto, retorna o pedido existente
+        comanda = mesa.comandas.filter(ativa=True).first()
+        if comanda is None:
+            raise ValidationError({'detail': 'Abra uma comanda para a mesa antes de criar um pedido.'})
+
+        pedido_aberto = comanda.pedidos.filter(concluido=False).first()
+        if pedido_aberto:
             return Response(
-                PedidoSerializer(aberta).data, status=status.HTTP_200_OK
+                PedidoSerializer(pedido_aberto).data, status=status.HTTP_200_OK
             )
         cozinha = Cozinha.objects.first()  # seleciona a primeira cozinha disponível - nao sei se ta certo - REVER LOGICA 
-        pedido = Pedido.objects.create(mesa=mesa, cozinha=cozinha) # cria o pedido
+        pedido = Pedido.objects.create(comanda=comanda, cozinha=cozinha)
         return Response(
             PedidoSerializer(pedido).data, status=status.HTTP_201_CREATED
         )

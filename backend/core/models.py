@@ -117,8 +117,8 @@ class Pedido(models.Model):
     id = models.BigAutoField(primary_key=True)  # id_pedido
     concluido = models.BooleanField(default=False)
     data_pedido = models.DateTimeField(auto_now_add=True)
-    mesa = models.ForeignKey(
-        Mesa,
+    comanda = models.ForeignKey(
+        Comanda,
         on_delete=models.PROTECT,
         related_name='pedidos',
         db_column='id_comanda',
@@ -134,7 +134,7 @@ class Pedido(models.Model):
         db_table = 'pedido'
         ordering = ['-data_pedido']
         indexes = [
-            models.Index(fields=['mesa', 'concluido']),
+            models.Index(fields=['comanda', 'concluido']),
             models.Index(fields=['cozinha', 'concluido']),
         ]
 

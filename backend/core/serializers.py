@@ -62,7 +62,7 @@ class PromocaoSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class PedidoSerializer(serializers.ModelSerializer):
-    mesa = MesaSerializer(read_only=True)
+    mesa = MesaSerializer(source='comanda.mesa', read_only=True)
     cozinha = CozinhaSerializer(read_only=True)
     itens_pedido = ItensPedidoSerializer(many=True,read_only=True)
     class Meta:
