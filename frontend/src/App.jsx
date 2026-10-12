@@ -3,13 +3,11 @@ import { FormAberturaComanda } from "./components/FormAberturaComanda";
 import Sidebar from "./components/Sidebar";
 import Bebidas from "./pages/Bebidas";
 import Comidas from "./pages/Comidas";
-import ModalProduto from "./components/ModalProduto";
 
 export default function App() {
   // Lê a rota atual da URL do navegador
   const [paginaAtual, setPaginaAtual] = useState(window.location.pathname);
-  const [categoriaAtual, setCategoriaAtual] = useState("");
-  const [produtoSelecionado, setProdutoSelecionado] = useState(null);
+  const [categoriaAtual, setCategoriaAtual] = useState("bebidas");
 
   // Verifica se o usuário está na tela inicial/abertura de comanda
   const isTelaInicial = paginaAtual === "/" || paginaAtual === "/abrir-comanda";
@@ -44,10 +42,10 @@ export default function App() {
             </h1>
 
             {categoriaAtual === "bebidas" && (
-              <Bebidas onSelecionarProduto={setProdutoSelecionado} />
+              <Bebidas />
             )}
             {categoriaAtual === "comidas" && (
-              <Comidas onSelecionarProduto={setProdutoSelecionado} />
+              <Comidas />
             )}
           </>
         )}
@@ -56,13 +54,6 @@ export default function App() {
         {paginaAtual === "/comanda" && <h1>Comanda</h1>}
       </main>
 
-      {produtoSelecionado && (
-        <ModalProduto
-          key={produtoSelecionado.id}
-          produto={produtoSelecionado}
-          onFechar={() => setProdutoSelecionado(null)}
-        />
-      )}
     </div>
   );
 }

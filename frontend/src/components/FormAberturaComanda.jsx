@@ -99,7 +99,7 @@ export function FormAberturaComanda({ aoSucesso }) {
 
     try {
       // CONEXÃO COM O BACK-END (DJANGO)
-      const resposta = await fetch('http://localhost:8000/api/comandas/abrir/', {
+      const resposta = await fetch(`/api/mesas/${parseInt(idMesa, 10)}/abrir-comanda/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,7 +107,6 @@ export function FormAberturaComanda({ aoSucesso }) {
         body: JSON.stringify({
           cpf: apenasNumerosCPF,
           telefone: apenasNumerosTel,
-          id_mesa: parseInt(idMesa, 10),
         }),
       });
 
@@ -141,14 +140,12 @@ export function FormAberturaComanda({ aoSucesso }) {
     <div className="w-full min-h-screen flex flex-col md:flex-row bg-[#F4F0E5]">
 
       {/* Lado Esquerdo - Painel Escuro para a Logo */}
-      <div className="w-full md:w-1/4 bg-[#373F47] flex flex-col items-center justify-center p-10 shadow-2xl z-10">
+      <div className="w-full md:w-1/4 bg-header flex flex-col items-center justify-center p-10 shadow-2xl z-10">
         <img 
           src={logo} 
           alt="Logo BarStar" 
           className="w-48 h-auto mb-6 drop-shadow-lg" 
         />
-        <h1 className="text-5xl font-extrabold text-white tracking-tight mb-2">BarStar</h1>
-        <p className="text-white text-xl font-medium">Sistema de Autoatendimento</p>
         
         {/* Um indicador de mesa embaixo da logo */}
         <div className="mt-auto pt-10">
@@ -164,7 +161,7 @@ export function FormAberturaComanda({ aoSucesso }) {
         {/* Cartão do Formulário */}
         <div className="w-full max-w-xl bg-white p-10 rounded-3xl shadow-xl border border-gray-100">
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-[#373F47]">Iniciar Atendimento</h2>
+            <h2 className="text-3xl font-bold text-header">Iniciar Atendimento</h2>
             <p className="text-gray-500 mt-2 text-base">
               Vincule seus dados para abrir a comanda desta mesa.
             </p>
@@ -172,7 +169,7 @@ export function FormAberturaComanda({ aoSucesso }) {
 
           <form onSubmit={aoEnviar} className="space-y-6">
             <div>
-              <label htmlFor="cpf" className="block text-sm font-semibold text-[#373F47] mb-2">
+              <label htmlFor="cpf" className="block text-sm font-semibold text-header mb-2">
                 CPF do Titular
               </label>
               <input
@@ -185,7 +182,7 @@ export function FormAberturaComanda({ aoSucesso }) {
                   if (erroCpf) setErroCpf('');
                   if (erroGeral) setErroGeral('');
                 }}
-                className={`w-full px-5 py-4 bg-[#F4F0E5]/50 border rounded-2xl outline-none text-[#373F47] transition text-lg ${
+                className={`w-full px-5 py-4 bg-[#F4F0E5]/50 border rounded-2xl outline-none text-header transition text-lg ${
                   erroCpf
                     ? 'border-red-500 focus:ring-2 focus:ring-red-200 bg-red-50'
                     : 'border-gray-200 focus:border-[#D4AF43] focus:ring-2 focus:ring-[#D4AF43]/30'
@@ -195,7 +192,7 @@ export function FormAberturaComanda({ aoSucesso }) {
             </div>
 
             <div>
-              <label htmlFor="telefone" className="block text-sm font-semibold text-[#373F47] mb-2">
+              <label htmlFor="telefone" className="block text-sm font-semibold text-header mb-2">
                 Telefone (WhatsApp)
               </label>
               <input
@@ -208,7 +205,7 @@ export function FormAberturaComanda({ aoSucesso }) {
                   if (erroTelefone) setErroTelefone('');
                   if (erroGeral) setErroGeral('');
                 }}
-                className={`w-full px-5 py-4 bg-[#F4F0E5]/50 border rounded-2xl outline-none text-[#373F47] transition text-lg ${
+                className={`w-full px-5 py-4 bg-[#F4F0E5]/50 border rounded-2xl outline-none text-header transition text-lg ${
                   erroTelefone
                     ? 'border-red-500 focus:ring-2 focus:ring-red-200 bg-red-50'
                     : 'border-gray-200 focus:border-[#D4AF43] focus:ring-2 focus:ring-[#D4AF43]/30'
@@ -224,7 +221,7 @@ export function FormAberturaComanda({ aoSucesso }) {
               <button
                 type="submit"
                 disabled={carregando}
-                className="w-full py-4 bg-[#D4AF43] text-[#373F47] font-bold text-xl rounded-2xl hover:bg-[#c29f39] active:scale-[0.98] transition-all shadow-md disabled:opacity-70 flex justify-center items-center gap-2"
+                className="w-full py-4 bg-[#D4AF43] text-header font-bold text-xl rounded-2xl hover:bg-[#c29f39] active:scale-[0.98] transition-all shadow-md disabled:opacity-70 flex justify-center items-center gap-2"
               >
                 {carregando ? 'Abrindo Comanda...' : 'Abrir Comanda'}
               </button>

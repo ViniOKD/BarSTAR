@@ -14,7 +14,8 @@ export default function CardProduto({ produto, onClick }) {
       className="flex h-52 w-full cursor-pointer items-stretch overflow-hidden rounded-lg border border-hover bg-destaque text-left text-header shadow-sm transition-all focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-hover active:scale-[0.99]"
     >
       <img
-        src={imagem || "/media/itens/default.jpg"}
+        src={imagem || "/media/itens/default.png"}
+        alt={nome}
         className="h-full w-[42%] shrink-0 object-cover"
       />
 
@@ -32,6 +33,8 @@ export default function CardProduto({ produto, onClick }) {
         {detalheProduto && (
           <span className="shrink-0 truncate text-sm text-header/70">{detalheProduto}</span>
         )}
+
+        <span className="text-sm text-header/70">Disponível</span>
 
         <span className="mt-auto shrink-0 text-xl font-bold text-[#996315]">
           {formatarPreco(preco_unitario)}

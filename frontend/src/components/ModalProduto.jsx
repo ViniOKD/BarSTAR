@@ -44,7 +44,7 @@ export default function ModalProduto({ produto, onFechar }) {
       <div className="grid md:grid-cols-[240px_1fr]">
         <div className="flex items-center bg-fundo p-4 border-hover md:border-r">
           <img
-            src={produto.imagem || "/media/itens/default.jpg"}
+            src={produto.imagem || "/media/itens/default.png"}
             alt={produto.nome}
             className="h-32 w-full rounded-lg object-cover md:h-56"
           />

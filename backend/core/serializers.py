@@ -8,6 +8,13 @@ from .models import (
 # Os serializers convertem dados do banco de dados para formato JSON
 
 
+class FiltroCardapioSerializer(serializers.Serializer):
+    disponivel = serializers.BooleanField(required=False)
+    tipo_categoria = serializers.ChoiceField(
+        choices=Categoria.TipoCategoria.choices, required=False,
+    )
+
+
 class CategoriaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Categoria
@@ -62,7 +69,7 @@ class PromocaoSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class PedidoSerializer(serializers.ModelSerializer):
-    mesa = MesaSerializer(read_only=True)
+    mesa = MesaSerializer(source='comanda.mesa', read_only=True)
     cozinha = CozinhaSerializer(read_only=True)
     itens_pedido = ItensPedidoSerializer(many=True,read_only=True)
     class Meta:
@@ -72,7 +79,6 @@ class PedidoSerializer(serializers.ModelSerializer):
 class AbrirComandaSerializer(serializers.Serializer):
     cpf = serializers.CharField(max_length=14)
     telefone = serializers.CharField(max_length=15)
-    id_mesa = serializers.IntegerField( required=True, error_messages={'required': 'A identificação da mesa é obrigatória.'})
 
     # Validação do CPF
     def validate_cpf(self, value):

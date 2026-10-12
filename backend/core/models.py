@@ -104,10 +104,8 @@ class Comanda(models.Model):
         db_table = 'comanda'
         ordering = ['-data_abertura']
 
-        # Garante que uma mesa só pode ter no máximo uma comanda ativa ao mesmo tempo
-        constraints = [
-            UniqueConstraint(fields=['mesa'], condition=Q(ativa=True), name='unica_comanda_ativa_por_mesa')
-        ]
+        # A abertura valida a comanda ativa com a mesa bloqueada na transação.
+        # MySQL não suporta UniqueConstraint com condition.
 
 
     def __str__(self):
@@ -117,8 +115,8 @@ class Pedido(models.Model):
     id = models.BigAutoField(primary_key=True)  # id_pedido
     concluido = models.BooleanField(default=False)
     data_pedido = models.DateTimeField(auto_now_add=True)
-    mesa = models.ForeignKey(
-        Mesa,
+    comanda = models.ForeignKey(
+        Comanda,
         on_delete=models.PROTECT,
         related_name='pedidos',
         db_column='id_comanda',
@@ -134,7 +132,7 @@ class Pedido(models.Model):
         db_table = 'pedido'
         ordering = ['-data_pedido']
         indexes = [
-            models.Index(fields=['mesa', 'concluido']),
+            models.Index(fields=['comanda', 'concluido']),
             models.Index(fields=['cozinha', 'concluido']),
         ]
 
@@ -173,6 +171,7 @@ class Item(models.Model):
     nome = models.CharField(max_length=50)
     descricao = models.TextField(blank=True, default='')
     preco_unitario = models.DecimalField(max_digits=10, decimal_places=2)
+    disponivel = models.BooleanField(default=True)
     categoria = models.ForeignKey(
         Categoria,
         on_delete=models.PROTECT,
