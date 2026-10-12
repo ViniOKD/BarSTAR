@@ -15,7 +15,7 @@ class CategoriaSerializer(serializers.ModelSerializer):
 class AbrirComandaSerializer(serializers.Serializer):
     cpf = serializers.CharField(max_length=14)
     telefone = serializers.CharField(max_length=15)
-    id_mesa = serializers.IntegerField(required=False, default=1)  # Mesa padrão para testes
+    id_mesa = serializers.IntegerField( required=True, error_messages={'required': 'A identificação da mesa é obrigatória.'})
 
     # Validação do CPF
     def validate_cpf(self, value):

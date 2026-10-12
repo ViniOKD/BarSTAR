@@ -38,7 +38,7 @@ class AbrirComandaView(APIView):
         
         cpf = serializer.validated_data['cpf']
         telefone = serializer.validated_data['telefone']
-        id_mesa = serializer.validated_data.get('id_mesa', 1)
+        id_mesa = serializer.validated_data['id_mesa']
 
         # Busca a mesa no banco
         try:
@@ -53,11 +53,8 @@ class AbrirComandaView(APIView):
         comanda_ativa = Comanda.objects.filter(mesa=mesa, ativa=True).first()
         if comanda_ativa:
             return Response(
-                {
-                    "mensagem": "Esta mesa já possui uma comanda ativa.",
-                    "id_comanda": comanda_ativa.id
-                },
-                status=status.HTTP_200_OK
+                {"erro": "Esta mesa já possui uma comanda em andamento. Procure o garçom para fechar a comanda atual."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         # Cria a nova comanda no MySQL
