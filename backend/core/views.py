@@ -5,16 +5,17 @@ from django.views.decorators.http import require_GET
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError
 
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao,
+    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda
 )
 from .serializers import (
     PedidoSerializer, CategoriaSerializer, GerenteSerializer, GarcomSerializer,
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
-    ItensPromocaoSerializer, PromocaoSerializer)
+    ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer)
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -41,6 +42,51 @@ class PedidoViewSet(viewsets.ModelViewSet):
 class CategoriaViewSet(viewsets.ModelViewSet):
     queryset = Categoria.objects.all()
     serializer_class = CategoriaSerializer
+
+class AbrirComandaView(APIView):
+    def post(self, request):
+        serializer = AbrirComandaSerializer(data=request.data)
+        
+        #Se CPF ou Telefone forem inválidos, retorna erro 400
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        cpf = serializer.validated_data['cpf']
+        telefone = serializer.validated_data['telefone']
+        id_mesa = serializer.validated_data['id_mesa']
+
+        # Busca a mesa no banco
+        try:
+            mesa = Mesa.objects.get(id=id_mesa)
+        except Mesa.DoesNotExist:
+            return Response(
+                {"erro": "Mesa informada não existe no sistema."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verifica se a mesa já possui comanda ativa
+        comanda_ativa = Comanda.objects.filter(mesa=mesa, ativa=True).first()
+        if comanda_ativa:
+            return Response(
+                {"erro": "Esta mesa já possui uma comanda em andamento. Procure o garçom para fechar a comanda atual."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Cria a nova comanda no MySQL
+        nova_comanda = Comanda.objects.create(
+            cpf=cpf,
+            telefone=telefone,
+            mesa=mesa,
+            ativa=True
+        )
+
+        return Response(
+            {
+                "mensagem": "Comanda aberta com sucesso!",
+                "id_comanda": nova_comanda.id
+            },
+            status=status.HTTP_201_CREATED
+        )
 
 class GerenteViewSet(viewsets.ModelViewSet):
     queryset = Gerente.objects.all()

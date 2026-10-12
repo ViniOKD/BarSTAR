@@ -87,6 +87,31 @@ class Cozinha(models.Model):
     def __str__(self):
         return self.nome
 
+class Comanda(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    cpf = models.CharField(max_length=11)
+    telefone = models.CharField(max_length=15)
+    ativa = models.BooleanField(default=True)
+    data_abertura = models.DateTimeField(auto_now_add=True)
+    mesa = models.ForeignKey(
+        Mesa,
+        on_delete=models.PROTECT,
+        related_name='comandas',
+        db_column='id_mesa',
+    )
+
+    class Meta:
+        db_table = 'comanda'
+        ordering = ['-data_abertura']
+
+        # Garante que uma mesa só pode ter no máximo uma comanda ativa ao mesmo tempo
+        constraints = [
+            UniqueConstraint(fields=['mesa'], condition=Q(ativa=True), name='unica_comanda_ativa_por_mesa')
+        ]
+
+
+    def __str__(self):
+        return f'Comanda #{self.id} -Mesa {self.mesa_id}'
 
 class Pedido(models.Model):
     id = models.BigAutoField(primary_key=True)  # id_pedido
@@ -96,7 +121,7 @@ class Pedido(models.Model):
         Mesa,
         on_delete=models.PROTECT,
         related_name='pedidos',
-        db_column='id_mesa',
+        db_column='id_comanda',
     )
     cozinha = models.ForeignKey(
         Cozinha,
@@ -114,7 +139,7 @@ class Pedido(models.Model):
         ]
 
     def __str__(self):
-        return f'Pedido #{self.id} - Mesa {self.mesa_id}'
+        return f'Pedido #{self.id} - Comanda {self.comanda_id}'
 
 
 class Categoria(models.Model):
@@ -309,3 +334,5 @@ class ItensPromocao(models.Model):
 
     def __str__(self):
         return f'{self.item} na {self.promocao}'
+
+

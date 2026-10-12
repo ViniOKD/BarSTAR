@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     health, PedidoViewSet, CategoriaViewSet, GerenteViewSet, GarcomViewSet,
-    MesaViewSet, CozinhaViewSet, ItemViewSet, ItensPedidoViewSet,
+    MesaViewSet, CozinhaViewSet, ItemViewSet, ItensPedidoViewSet, AbrirComandaView,
     ItensPromocaoViewSet, PromocaoViewSet)
 
 router = DefaultRouter()
@@ -20,5 +20,6 @@ router.register(r'promocoes', PromocaoViewSet, basename='promocao')
 
 urlpatterns = [
     path("health/", health, name="health"),
+    path('comandas/abrir/', AbrirComandaView.as_view(), name='abrir-comanda'),
     path('', include(router.urls))
 ]
