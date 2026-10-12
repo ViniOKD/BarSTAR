@@ -23,7 +23,7 @@ class Gerente(models.Model):
 
 
 class Garcom(models.Model):
-    id = models.BigAutoField(primary_key=True)  # id_garcom
+    id = models.BigAutoField(primary_key=True)  # id_garcom~
     data_efetivacao = models.DateTimeField(auto_now_add=True)
     nome = models.CharField(max_length=50)
     tel = models.CharField(max_length=15, unique=True)
@@ -143,8 +143,16 @@ class Pedido(models.Model):
 
 
 class Categoria(models.Model):
+    class TipoCategoria(models.TextChoices):
+        PRATO = 'PRATO', 'Prato'
+        BEBIDA = 'BEBIDA', 'Bebida'
+
     id = models.BigAutoField(primary_key=True)  # id_categoria
     nome = models.CharField(max_length=50, unique=True)
+    tipo_categoria = models.CharField(
+        max_length=10,
+        choices=TipoCategoria.choices,
+    )
 
     class Meta:
         db_table = 'categoria'
@@ -156,10 +164,6 @@ class Categoria(models.Model):
 
 
 class Item(models.Model):
-    class TipoItem(models.TextChoices):
-        PRATO = 'PRATO', 'Prato'
-        BEBIDA = 'BEBIDA', 'Bebida'
-
     class PontoCarne(models.TextChoices):
         MAL_PASSADO = 'MAL PASSADO', 'Mal Passado'
         NO_PONTO = 'NO PONTO', 'No Ponto'
@@ -181,11 +185,7 @@ class Item(models.Model):
         related_name='itens',
         db_column='id_gerente',
     )
-    tipo_item = models.CharField(
-        max_length=10,
-        choices=TipoItem.choices,
-        default=TipoItem.PRATO,
-    )
+    imagem = models.ImageField(upload_to='itens/', blank=True, default='itens/default.png')  
 
     # Atributos de Prato (null/blank para bebidas)
     peso = models.FloatField(null=True, blank=True)
@@ -209,16 +209,22 @@ class Item(models.Model):
             # Validação condicional simples no banco (opcional, mais forte no clean/save)
         ]
         indexes = [
-            models.Index(fields=['categoria', 'tipo_item']),
             models.Index(fields=['gerente']),
         ]
 
     def __str__(self):
-        return f'{self.nome} ({self.get_tipo_item_display()})'
+        return f'{self.nome} ({self.categoria.nome})'
 
     def clean(self):
         from django.core.exceptions import ValidationError
-        if self.tipo_item == self.TipoItem.PRATO:
+        super().clean()
+        # A validação do campo já informa se a categoria está ausente ou é inválida.
+        try:
+            categoria = self.categoria
+        except Categoria.DoesNotExist:
+            return
+
+        if categoria.tipo_categoria == Categoria.TipoCategoria.PRATO:
             if self.peso is None:
                 raise ValidationError({'peso': 'Peso é obrigatório para pratos.'})
             if self.tempo_preparo_minutos is None:
@@ -226,7 +232,7 @@ class Item(models.Model):
             # Bebida fields devem ser None
             self.teor_alcoolico = None
             self.volume_ml = None
-        elif self.tipo_item == self.TipoItem.BEBIDA:
+        elif categoria.tipo_categoria == Categoria.TipoCategoria.BEBIDA:
             if self.teor_alcoolico is None:
                 raise ValidationError({'teor_alcoolico': 'Teor alcoólico é obrigatório para bebidas.'})
             if self.volume_ml is None:
@@ -328,4 +334,5 @@ class ItensPromocao(models.Model):
 
     def __str__(self):
         return f'{self.item} na {self.promocao}'
+
 

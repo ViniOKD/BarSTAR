@@ -1,15 +1,72 @@
 import re
 from rest_framework import serializers
-from .models import Pedido, Categoria, Comanda
+from .models import (
+    Gerente, Garcom, Mesa, Cozinha, Categoria,
+    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda
+)
 
-class PedidoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Pedido
-        fields = '__all__'
+# Os serializers convertem dados do banco de dados para formato JSON
+
 
 class CategoriaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Categoria
+        fields = '__all__'
+
+
+class GerenteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Gerente
+        fields = '__all__'
+
+
+class GarcomSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Garcom
+        fields = '__all__'
+
+class MesaSerializer(serializers.ModelSerializer):
+    garcom = GarcomSerializer(read_only=True)
+    class Meta:
+        model = Mesa
+        fields = '__all__'
+
+class CozinhaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Cozinha
+        fields = '__all__'
+
+class ItemSerializer(serializers.ModelSerializer):
+    categoria = CategoriaSerializer(read_only=True)
+    class Meta:
+        model = Item
+        fields = '__all__'
+
+class ItensPedidoSerializer(serializers.ModelSerializer):
+    item = ItemSerializer(read_only=True)
+    class Meta:
+        model = ItensPedido
+        fields = ['id', 'item', 'preco', 'quantidade'] 
+
+
+class ItensPromocaoSerializer(serializers.ModelSerializer):
+    item = ItemSerializer(read_only=True)
+    class Meta:
+        model = ItensPromocao
+        fields = '__all__'
+
+class PromocaoSerializer(serializers.ModelSerializer):
+    itens_promocao = ItensPromocaoSerializer(many=True,read_only=True)
+    class Meta:
+        model = Promocao
+        fields = '__all__'
+
+class PedidoSerializer(serializers.ModelSerializer):
+    mesa = MesaSerializer(read_only=True)
+    cozinha = CozinhaSerializer(read_only=True)
+    itens_pedido = ItensPedidoSerializer(many=True,read_only=True)
+    class Meta:
+        model = Pedido
         fields = '__all__'
 
 class AbrirComandaSerializer(serializers.Serializer):

@@ -1,32 +1,68 @@
-import Header from "./components/Header";
+import { useState } from "react";
 import { FormAberturaComanda } from "./components/FormAberturaComanda";
+import Sidebar from "./components/Sidebar";
+import Bebidas from "./pages/Bebidas";
+import Comidas from "./pages/Comidas";
+import ModalProduto from "./components/ModalProduto";
 
 export default function App() {
-  const caminhoAtual = window.location.pathname;
-  
-  // Define se é a tela de início (sem menu lateral)
-  const isTelaInicial = caminhoAtual === '/abrir-comanda' || caminhoAtual === '/';
+  // Lê a rota atual da URL do navegador
+  const [paginaAtual, setPaginaAtual] = useState(window.location.pathname);
+  const [categoriaAtual, setCategoriaAtual] = useState("");
+  const [produtoSelecionado, setProdutoSelecionado] = useState(null);
 
+  // Verifica se o usuário está na tela inicial/abertura de comanda
+  const isTelaInicial = paginaAtual === "/" || paginaAtual === "/abrir-comanda";
+
+  // Se for a Tela Inicial de Abertura de Comanda
+  if (isTelaInicial) {
+    return (
+      <FormAberturaComanda 
+        aoSucesso={() => setPaginaAtual("/cardapio")} 
+      />
+    );
+  }
+
+  // Se já passou possui comanda, exibe a estrutura completa do Cardápio
   return (
-    <div className="flex w-full min-h-screen bg-[#F5F5F5]">
-      {/* Renderiza o Header apenas se NÃO for a tela inicial */}
-      {!isTelaInicial && <Header paginaAtual={caminhoAtual} />}
+    <div className="flex w-full min-h-screen bg-[#F4F0E5]">
+      <Sidebar
+        paginaAtual={paginaAtual}
+        onNavegar={setPaginaAtual}
+        onSelecionarCategoria={setCategoriaAtual}
+      />
 
-      {/* Ajusta a largura e margem dinamicamente */}
-      <main className={`flex-1 flex items-center justify-center ${isTelaInicial ? 'w-full bg-gray-900' : 'ml-64 p-8'}`}>
-        
-        {isTelaInicial ? (
-          <FormAberturaComanda />
-        ) : (
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Cardápio</h1>
-            <p className="text-gray-600">
-              O cliente já está com a comanda aberta. Exiba o cardápio aqui.
-            </p>
-          </div>
+      <main className="ml-64 flex-1 p-6">
+        {paginaAtual === "/cardapio" && (
+          <>
+            <h1 className="mb-6 font-header text-2xl font-bold text-header">
+              {categoriaAtual === "bebidas"
+                ? "Bebidas"
+                : categoriaAtual === "comidas"
+                  ? "Comidas"
+                  : "Cardápio"}
+            </h1>
+
+            {categoriaAtual === "bebidas" && (
+              <Bebidas onSelecionarProduto={setProdutoSelecionado} />
+            )}
+            {categoriaAtual === "comidas" && (
+              <Comidas onSelecionarProduto={setProdutoSelecionado} />
+            )}
+          </>
         )}
-        
+
+        {paginaAtual === "/promocoes" && <h1>Promoções</h1>}
+        {paginaAtual === "/comanda" && <h1>Comanda</h1>}
       </main>
+
+      {produtoSelecionado && (
+        <ModalProduto
+          key={produtoSelecionado.id}
+          produto={produtoSelecionado}
+          onFechar={() => setProdutoSelecionado(null)}
+        />
+      )}
     </div>
   );
 }
