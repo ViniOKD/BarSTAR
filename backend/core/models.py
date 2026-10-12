@@ -171,6 +171,7 @@ class Item(models.Model):
     nome = models.CharField(max_length=50)
     descricao = models.TextField(blank=True, default='')
     preco_unitario = models.DecimalField(max_digits=10, decimal_places=2)
+    disponivel = models.BooleanField(default=True)
     categoria = models.ForeignKey(
         Categoria,
         on_delete=models.PROTECT,

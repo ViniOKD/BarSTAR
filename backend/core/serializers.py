@@ -8,6 +8,13 @@ from .models import (
 # Os serializers convertem dados do banco de dados para formato JSON
 
 
+class FiltroCardapioSerializer(serializers.Serializer):
+    disponivel = serializers.BooleanField(required=False)
+    tipo_categoria = serializers.ChoiceField(
+        choices=Categoria.TipoCategoria.choices, required=False,
+    )
+
+
 class CategoriaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Categoria

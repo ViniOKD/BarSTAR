@@ -5,6 +5,7 @@ from django.views.decorators.http import require_GET
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
 
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
@@ -13,7 +14,8 @@ from .models import (
 from .serializers import (
     PedidoSerializer, CategoriaSerializer, GerenteSerializer, GarcomSerializer,
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
-    ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer)
+    ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
+    FiltroCardapioSerializer)
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -40,6 +42,23 @@ class PedidoViewSet(viewsets.ModelViewSet):
 class CategoriaViewSet(viewsets.ModelViewSet):
     queryset = Categoria.objects.all()
     serializer_class = CategoriaSerializer
+    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+
+    def get_queryset(self):
+        categorias = super().get_queryset()
+        if self.action != 'list':
+            return categorias
+
+        filtro = FiltroCardapioSerializer(data=self.request.query_params)
+        filtro.is_valid(raise_exception=True)
+        tipo = filtro.validated_data.get('tipo_categoria')
+        if tipo:
+            categorias = categorias.filter(tipo_categoria=tipo)
+        if 'disponivel' in filtro.validated_data:
+            categorias = categorias.filter(
+                itens__disponivel=filtro.validated_data['disponivel'],
+            ).distinct()
+        return categorias
 
 class AbrirComandaView(APIView):
     def post(self, request, id_mesa):
@@ -111,12 +130,20 @@ class CozinhaViewSet(viewsets.ModelViewSet):
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemSerializer
+    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
 
     def get_queryset(self):
         itens = super().get_queryset()
-        tipo = self.request.query_params.get('tipo_categoria')
+        if self.action != 'list':
+            return itens
+
+        filtro = FiltroCardapioSerializer(data=self.request.query_params)
+        filtro.is_valid(raise_exception=True)
+        tipo = filtro.validated_data.get('tipo_categoria')
         if tipo:
             itens = itens.filter(categoria__tipo_categoria=tipo)
+        if 'disponivel' in filtro.validated_data:
+            itens = itens.filter(disponivel=filtro.validated_data['disponivel'])
         return itens
 
 class ItensPedidoViewSet(viewsets.ModelViewSet):
