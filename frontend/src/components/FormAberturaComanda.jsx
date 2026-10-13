@@ -10,7 +10,8 @@ export function FormAberturaComanda({ aoSucesso }) {
   const [erroTelefone, setErroTelefone] = useState('');
   const [erroGeral, setErroGeral] = useState('');
   const [carregando, setCarregando] = useState(false);
-  
+  const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
+  const [segundos, setSegundos] = useState(5);
   // Estado para armazenar o número da mesa do tablet
   const [idMesa, setIdMesa] = useState(() => {
     const parametrosUrl = new URLSearchParams(window.location.search);
@@ -42,6 +43,22 @@ export function FormAberturaComanda({ aoSucesso }) {
     }
 
   }, []);
+  // Contagem regressiva do popup de confirmação
+  useEffect(() => {
+    if (!mostrarConfirmacao) return;
+
+    if (segundos <= 0) {
+      setMostrarConfirmacao(false);
+      if (aoSucesso) aoSucesso();
+      window.location.href = '/cardapio';
+      return;
+    }
+
+    const timer = setTimeout(() => setSegundos((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mostrarConfirmacao, segundos]);
+
 
   // Formatação automática do CPF: 000.000.000-00
   const formatarCPF = (texto) => {
@@ -127,8 +144,10 @@ export function FormAberturaComanda({ aoSucesso }) {
       localStorage.setItem('clienteCPF', apenasNumerosCPF);
       localStorage.setItem('clienteTelefone', apenasNumerosTel);
 
-      if (aoSucesso) aoSucesso();
-      window.location.href = '/cardapio';
+      setCarregando(false);
+      setSegundos(5);              // reinicia a contagem
+      setMostrarConfirmacao(true); // abre o popup
+  
 
     } catch {
       setErroGeral('Não foi possível conectar ao servidor. Verifique a conexão.');
@@ -236,6 +255,35 @@ export function FormAberturaComanda({ aoSucesso }) {
         </div>
 
       </div>
+      {mostrarConfirmacao && (
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      >
+        <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-9 w-9 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h3 className="text-2xl font-bold text-header">Comanda aberta com sucesso!</h3>
+          <p className="mt-2 text-gray-500">
+            A comanda da mesa {idMesa ? idMesa.padStart(2, '0') : '--'} foi criada.
+          </p>
+          <p className="mt-4 text-sm text-gray-400">
+            Você será direcionado ao cardápio em {segundos}s...
+          </p>
+          <button
+            type="button"
+            onClick={() => setSegundos(0)}
+            className="mt-6 w-full rounded-2xl bg-[#D4AF43] py-4 text-lg font-bold text-header transition-all hover:bg-[#c29f39] active:scale-[0.98]"
+          >
+            Ir para o cardápio agora
+          </button>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
