@@ -10,13 +10,13 @@ export function FormAberturaComanda({ aoSucesso }) {
   const [erroTelefone, setErroTelefone] = useState('');
   const [erroGeral, setErroGeral] = useState('');
   const [carregando, setCarregando] = useState(false);
-
+  
   // Estado para armazenar o número da mesa do tablet
-  const [idMesa] = useState(() => {
+  const [idMesa, setIdMesa] = useState(() => {
     const parametrosUrl = new URLSearchParams(window.location.search);
-    return parametrosUrl.get('mesa') || localStorage.getItem('id_mesa_tablet') || '1';
+    return parametrosUrl.get('mesa') || localStorage.getItem('id_mesa_tablet') || null;
   });
-
+  const mesaIdentificada = Boolean(idMesa);
   useEffect(() => {
 
     // Redirecionamento se a comanda já estiver aberta
@@ -36,7 +36,7 @@ export function FormAberturaComanda({ aoSucesso }) {
     if (mesaUrl) {
       // Se obteve identificação, o tablet sabe sempre a qual mesa pertence mesmo que reiniciado
       localStorage.setItem('id_mesa_tablet', mesaUrl);
-      
+      setIdMesa(mesaUrl);
       // Limpa a URL para o cliente não ver o parâmetro
       window.history.replaceState(null, '', window.location.pathname);
     }
@@ -63,6 +63,10 @@ export function FormAberturaComanda({ aoSucesso }) {
 
   const aoEnviar = async (evento) => {
     evento.preventDefault();
+    if (!idMesa) {
+      setErroGeral('Número da mesa não identificado. Chame o gerente para configurar.');
+      return;
+    }
 
     // Limpa erros anteriores
     setErroCpf('');
@@ -147,7 +151,7 @@ export function FormAberturaComanda({ aoSucesso }) {
         {/* Um indicador de mesa embaixo da logo */}
         <div className="mt-auto pt-10">
           <div className="bg-[#2a3037] px-6 py-2 rounded-full border border-[#D4AF43]/20">
-            <p className="text-[#F4F0E5] font-semibold tracking-widest">MESA {idMesa.padStart(2,'0')}</p>
+            <p className="text-[#F4F0E5] font-semibold tracking-widest">MESA {idMesa ? idMesa.padStart(2,'0') : '--'}</p>
           </div>
         </div>
       </div>
@@ -157,6 +161,11 @@ export function FormAberturaComanda({ aoSucesso }) {
         
         {/* Cartão do Formulário */}
         <div className="w-full max-w-xl bg-white p-10 rounded-3xl shadow-xl border border-gray-100">
+          {!mesaIdentificada && (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-center text-sm font-medium text-red-600">
+            Este tablet não está configurado com uma mesa. Chame o gerente para configurar.
+          </div>
+        )}
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-header">Iniciar Atendimento</h2>
             <p className="text-gray-500 mt-2 text-base">
@@ -217,7 +226,7 @@ export function FormAberturaComanda({ aoSucesso }) {
               )}
               <button
                 type="submit"
-                disabled={carregando}
+                disabled={carregando || !mesaIdentificada}
                 className="w-full py-4 bg-[#D4AF43] text-header font-bold text-xl rounded-2xl hover:bg-[#c29f39] active:scale-[0.98] transition-all shadow-md disabled:opacity-70 flex justify-center items-center gap-2"
               >
                 {carregando ? 'Abrindo Comanda...' : 'Abrir Comanda'}
