@@ -121,6 +121,8 @@ class Pedido(models.Model):
         related_name='pedidos',
         db_column='id_comanda',
     )
+
+    # No banco, id da cozinha n pode ser null
     cozinha = models.ForeignKey(
         Cozinha,
         on_delete=models.PROTECT,

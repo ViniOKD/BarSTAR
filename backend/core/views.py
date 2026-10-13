@@ -15,7 +15,7 @@ from .serializers import (
     PedidoSerializer, CategoriaSerializer, GerenteSerializer, GarcomSerializer,
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
-    FiltroCardapioSerializer)
+    FiltroCardapioSerializer,ComandaConsultaSerializer)
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -109,6 +109,35 @@ class AbrirComandaView(APIView):
             },
             status=status.HTTP_201_CREATED
         )
+
+class ConsultarComandaView(APIView):
+    def get(self, request, id_mesa):
+        # Verifica se a mesa existe
+        if not Mesa.objects.filter(id=id_mesa).exists():
+            return Response(
+                {"erro": "Mesa informada não existe no sistema."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Busca a comanda ativa vinculada à mesa
+        comanda = (
+            Comanda.objects
+            .filter(mesa_id=id_mesa, ativa=True)
+            .prefetch_related("pedidos__itens_pedido__item")
+            .order_by("-data_abertura")
+            .first()
+        )
+
+        if comanda is None:
+            return Response(
+                {"erro": "Esta mesa não possui uma comanda ativa."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Converte a comanda e seus pedidos para JSON
+        serializer = ComandaConsultaSerializer(comanda)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class GerenteViewSet(viewsets.ModelViewSet):
     queryset = Gerente.objects.all()
