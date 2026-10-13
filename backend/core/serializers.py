@@ -86,26 +86,31 @@ class AbrirComandaSerializer(serializers.Serializer):
         cpf_numeros = re.sub(r'\D', '', value)
         if len(cpf_numeros) != 11:
             raise serializers.ValidationError("O CPF informado é inválido. Digite os 11 dígitos.")
+        if cpf_numeros == cpf_numeros[0] * 11:
+            raise serializers.ValidationError("O CPF informado é inválido.")
+
         digitos = [int(d) for d in cpf_numeros]
 
-        soma_d1= sum(digitos[i] * (10- i) for i in range(9))
+        soma_d1 = sum(digitos[i] * (10 - i) for i in range(9))
         resto_d1 = soma_d1 % 11
         d1_esperado = 0 if resto_d1 < 2 else 11 - resto_d1
         if digitos[9] != d1_esperado:
-            return serializers.ValidationError("O CPF informado é inválido.")
-        
-        soma_d2 = sum(digitos[i]*(11-i) for i in range(10))
+            raise serializers.ValidationError("O CPF informado é inválido.")
+
+        soma_d2 = sum(digitos[i] * (11 - i) for i in range(10))
         resto_d2 = soma_d2 % 11
         d2_esperado = 0 if resto_d2 < 2 else 11 - resto_d2
         if digitos[10] != d2_esperado:
-            return serializers.ValidationError("O CPF informado é inválido.")
+            raise serializers.ValidationError("O CPF informado é inválido.")
+
         return cpf_numeros
 
     # Validação do Telefone
-    def validate_telefone(self, numero : str, pais : str = 'BR'):
+    def validate_telefone(self, value):
         try:
-            parsed = phonenumbers.parse(numero, pais)
-            return phonenumbers.is_valid_number(parsed)
+            parsed = phonenumbers.parse(value, 'BR')
         except phonenumbers.NumberParseException:
             raise serializers.ValidationError("O número de telefone informado é inválido.")
-
+        if not phonenumbers.is_valid_number(parsed):
+            raise serializers.ValidationError("O número de telefone informado é inválido.")
+        return value

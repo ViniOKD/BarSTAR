@@ -18,6 +18,8 @@ export function FormAberturaComanda({ aoSucesso }) {
     return parametrosUrl.get('mesa') || localStorage.getItem('id_mesa_tablet') || null;
   });
   const mesaIdentificada = Boolean(idMesa);
+  
+
   useEffect(() => {
 
     // Redirecionamento se a comanda já estiver aberta
@@ -78,6 +80,17 @@ export function FormAberturaComanda({ aoSucesso }) {
       .slice(0, 15);
   };
 
+  const cpfValido = (numeros) => {
+    if (numeros.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(numeros)) return false;
+    const d = numeros.split('').map(Number);
+    const digito = (fator) => {
+      const soma = d.slice(0, fator - 1).reduce((acc, n, i) => acc + n * (fator - i), 0);
+      const resto = soma % 11;
+      return resto < 2 ? 0 : 11 - resto;
+    };
+    return digito(10) === d[9] && digito(11) === d[10];
+  };
   const aoEnviar = async (evento) => {
     evento.preventDefault();
     if (!idMesa) {
@@ -98,8 +111,8 @@ export function FormAberturaComanda({ aoSucesso }) {
     if (!apenasNumerosCPF) {
       setErroCpf('Por favor, informe o CPF.');
       temErro = true;
-    } else if (apenasNumerosCPF.length !== 11) {
-      setErroCpf('CPF inválido. Verifique os 11 dígitos.');
+    } else if (!cpfValido(apenasNumerosCPF)) {
+      setErroCpf('CPF inválido. Verifique os dígitos informados.');
       temErro = true;
     }
 
