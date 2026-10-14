@@ -250,6 +250,12 @@ class Item(models.Model):
 
 class ItensPedido(models.Model):
     """Tabela intermediária Pedido ↔ Item com campos extras."""
+
+    class Status(models.TextChoices):
+        EM_PREPARO = 'EM_PREPARO', 'Em preparo'
+        PRONTO = 'PRONTO', 'Pronto'
+        ENTREGUE = 'ENTREGUE', 'Entregue'
+
     item = models.ForeignKey(
         Item,
         on_delete=models.PROTECT,
@@ -264,6 +270,7 @@ class ItensPedido(models.Model):
     )
     preco = models.DecimalField(max_digits=10, decimal_places=2)  # preço no momento do pedido
     quantidade = models.PositiveIntegerField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.EM_PREPARO,)
 
     class Meta:
         db_table = 'itens_pedido'

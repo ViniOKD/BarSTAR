@@ -154,6 +154,7 @@ export function FormAberturaComanda({ aoSucesso }) {
       
       // Salva localmente e redireciona
       localStorage.setItem('comandaAtiva', 'true');
+      localStorage.setItem('id_comanda', dados.id_comanda);
       localStorage.setItem('clienteCPF', apenasNumerosCPF);
       localStorage.setItem('clienteTelefone', apenasNumerosTel);
 
