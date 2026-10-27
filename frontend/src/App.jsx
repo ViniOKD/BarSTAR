@@ -6,6 +6,23 @@ import Comidas from "./pages/Comidas";
 import Comanda from "./pages/Comanda";
 import Configuracoes from "./pages/Configuracoes";
 import PainelGerente from "./pages/PainelGerente";
+import { SidebarGerente } from "./components/SidebarGerente";
+import Usuarios from "./pages/gerente/Usuarios";
+import Mesas from "./pages/gerente/Mesas";
+import Categorias from "./pages/gerente/Categorias";
+import Produtos from "./pages/gerente/Produtos";
+import Promocoes from "./pages/gerente/Promocoes";
+import Comandas from "./pages/gerente/Comandas";
+
+const telasGerente = {
+  "/gerente": <PainelGerente />,
+  "/gerente/usuarios": <Usuarios />,
+  "/gerente/mesas": <Mesas />,
+  "/gerente/categorias": <Categorias />,
+  "/gerente/produtos": <Produtos />,
+  "/gerente/promocoes": <Promocoes />,
+  "/gerente/comandas": <Comandas />,
+};
 
 export default function App() {
   // Lê a rota atual da URL do navegador
@@ -60,8 +77,15 @@ export default function App() {
     return <Configuracoes />;
   }
 
-  if (paginaAtual === "/gerente") {
-    return <PainelGerente />;
+  if (Object.hasOwn(telasGerente, paginaAtual)) {
+    return (
+      <>
+        <SidebarGerente paginaAtual={paginaAtual} />
+        <main className="ml-64 min-h-screen bg-fundo p-8">
+          {telasGerente[paginaAtual]}
+        </main>
+      </>
+    );
   }
 
   // Se já passou possui comanda, exibe a estrutura completa do Cardápio
