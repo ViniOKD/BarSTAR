@@ -4,6 +4,8 @@ import Sidebar from "./components/Sidebar";
 import Bebidas from "./pages/Bebidas";
 import Comidas from "./pages/Comidas";
 import Comanda from "./pages/Comanda";
+import Configuracoes from "./pages/Configuracoes";
+import PainelGerente from "./pages/PainelGerente";
 
 export default function App() {
   // Lê a rota atual da URL do navegador
@@ -54,9 +56,18 @@ export default function App() {
     );
   }
 
+  if (paginaAtual === "/configuracoes") {
+    return <Configuracoes />;
+  }
+
+  if (paginaAtual === "/gerente") {
+    return <PainelGerente />;
+  }
+
   // Se já passou possui comanda, exibe a estrutura completa do Cardápio
   return (
     <div className="flex w-full min-h-screen bg-[#F4F0E5]">
+      
       <Sidebar
         paginaAtual={paginaAtual}
         onNavegar={setPaginaAtual}

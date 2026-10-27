@@ -1,0 +1,93 @@
+.configuracoes-login {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: #555;
+  font-family: Arial, sans-serif;
+  color: #f9f9f9;
+}
+
+.login-cartao {
+  width: 100%;
+  max-width: 432px;
+  background: #333;
+  border: 1px solid #292929;
+  border-radius: 5px;
+  box-shadow: inset 1px 1px 0 #ffffff08, -2px 0 0 #ffffff05;
+  overflow: hidden;
+}
+
+.login-cabecalho {
+  padding: 18px 38px 20px;
+  border-bottom: 1px solid #444;
+}
+
+.login-cabecalho h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 500;
+  text-shadow: 0 2px 1px #111;
+}
+
+.login-formulario { padding: 44px 39px 50px; }
+
+.login-campo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 46px;
+  padding: 0 17px;
+  background: #fafafa;
+  color: #777;
+  border: 1px solid #181818;
+  border-radius: 4px;
+  box-shadow: 0 1px 1px #ffffff15;
+}
+
+.login-campo + label + .login-campo { margin-top: 21px; }
+.login-campo svg { width: 15px; height: 15px; flex-shrink: 0; }
+.login-campo:focus-within { outline: 2px solid #ffb900; outline-offset: 2px; }
+.login-campo input {
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #333;
+  font-size: 18px;
+}
+.login-campo input::placeholder { color: #777; opacity: 1; }
+.login-opcoes { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 14px; color: #ccc; font-size: 14px; }
+.login-mostrar-senha { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.login-mostrar-senha input { width: 20px; height: 20px; margin: 0; accent-color: #ffb900; }
+.login-ajuda { padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.login-ajuda:hover { color: white; text-decoration: underline; }
+.login-entrar {
+  width: 100%;
+  margin-top: 34px;
+  padding: 9px 16px;
+  border: 1px solid #ffd448;
+  border-radius: 4px;
+  background: linear-gradient(#ffb900, #ffae00);
+  color: white;
+  font-size: 20px;
+  line-height: 24px;
+  text-shadow: 0 1px 2px #7b6600;
+  box-shadow: 0 1px 2px #222;
+  cursor: pointer;
+}
+.login-entrar:hover { background: #ffc020; }
+.login-entrar:disabled { opacity: .65; cursor: wait; }
+.login-entrar:focus-visible, .login-ajuda:focus-visible { outline: 2px solid white; outline-offset: 4px; }
+.login-erro, .login-mensagem { margin: 20px 0 0; font-size: 14px; line-height: 1.5; }
+.login-erro { color: #ffb4b4; }
+.login-mensagem { color: #f3dfaa; }
+
+@media (max-width: 420px) {
+  .login-cabecalho { padding: 22px 24px; }
+  .login-cabecalho h1 { font-size: 26px; }
+  .login-formulario { padding: 32px 24px; }
+}
