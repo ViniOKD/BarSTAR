@@ -2,7 +2,7 @@ from django.db import connection, transaction
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
 
 from rest_framework import viewsets, status
 from rest_framework.response import Response
@@ -189,6 +189,12 @@ class PromocaoViewSet(viewsets.ModelViewSet):
     queryset = Promocao.objects.all()
     serializer_class = PromocaoSerializer
 
+class LogoutView(APIView):
+    def post(self, request):
+        logout(request)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class LoginView(APIView):
     def post(self, request):
         cpf = request.data.get('cpf')
@@ -210,4 +216,3 @@ class LoginView(APIView):
             }, 
             status=status.HTTP_200_OK
         )
-        
