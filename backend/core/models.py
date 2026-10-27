@@ -1,16 +1,43 @@
 from django.db import models
 from django.db.models import CheckConstraint, Q, UniqueConstraint
-
+from django.contrib.auth.models import AbstractUser, BaseUserManager
 # Create your models here.
 
-class Gerente(models.Model):
+class GerenteManager(BaseUserManager):
+    def create_user(self, cpf, password=None, **extra_fields):
+        if not cpf:
+            raise ValueError("O CPF é obrigatório.")
+
+        gerente = self.model(cpf=cpf, **extra_fields)
+        gerente.set_password(password)
+        gerente.save(using=self._db)
+        return gerente
+
+    def create_superuser(self, cpf, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superusuário precisa ter is_staff=True.")
+
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superusuário precisa ter is_superuser=True.")
+
+        return self.create_user(cpf, password, **extra_fields)
+
+class Gerente(AbstractUser):
     id = models.BigAutoField(primary_key=True)  # id_gerente
     data_efetivacao = models.DateTimeField(auto_now_add=True)
     salario = models.DecimalField(max_digits=10, decimal_places=2)
     nome = models.CharField(max_length=50)
     cpf = models.CharField(max_length=11, unique=True)
     tel = models.CharField(max_length=15, unique=True)
+    username = None
+    USERNAME_FIELD = "cpf"
+    REQUIRED_FIELDS = ["nome", "tel", "salario"]
 
+    objects = GerenteManager()
+    
     class Meta:
         db_table = 'gerente'
         ordering = ['nome']
@@ -20,6 +47,9 @@ class Gerente(models.Model):
 
     def __str__(self):
         return self.nome
+
+
+
 
 
 class Garcom(models.Model):

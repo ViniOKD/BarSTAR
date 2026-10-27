@@ -162,3 +162,10 @@ SPECTACULAR_SETTINGS = {
 }
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+AUTHENTICATION_BACKENDS=[
+    'django.contrib.auth.backends.ModelBackend',
+    
+]
+
+AUTH_USER_MODEL = "core.Gerente"
