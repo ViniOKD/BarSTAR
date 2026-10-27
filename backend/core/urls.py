@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     health, PedidoViewSet, CategoriaViewSet, GerenteViewSet, GarcomViewSet,
     MesaViewSet, CozinhaViewSet, ItemViewSet, ItensPedidoViewSet, AbrirComandaView,
-    ItensPromocaoViewSet, PromocaoViewSet,ConsultarComandaView)
+    ItensPromocaoViewSet, PromocaoViewSet,ConsultarComandaView, LoginView)
 
 router = DefaultRouter()
 router.register(r'pedidos', PedidoViewSet, basename='pedido')
@@ -20,6 +20,7 @@ router.register(r'promocoes', PromocaoViewSet, basename='promocao')
 
 urlpatterns = [
     path("health/", health, name="health"),
+    path("login/", LoginView.as_view(), name='login'),
     path('mesas/<int:id_mesa>/abrir-comanda/', AbrirComandaView.as_view(), name='abrir-comanda'),
     path('mesas/<int:id_mesa>/comanda/',ConsultarComandaView.as_view(),name='consultar-comanda'),
     path('', include(router.urls))

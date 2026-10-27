@@ -2,6 +2,8 @@ from django.db import connection, transaction
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
+from django.contrib.auth import authenticate, login
+
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -186,3 +188,26 @@ class ItensPromocaoViewSet(viewsets.ModelViewSet):
 class PromocaoViewSet(viewsets.ModelViewSet):
     queryset = Promocao.objects.all()
     serializer_class = PromocaoSerializer
+
+class LoginView(APIView):
+    def post(self, request):
+        cpf = request.data.get('cpf')
+        senha = request.data.get('senha')
+        user = authenticate(request, username=cpf, password=senha)
+        if user is None:
+            return Response(
+                {"erro": "Credenciais inválidas"}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        login(request, user)
+        
+        return Response(
+            {"mensagem": "Login realizado com sucesso.",
+            "gerente": {
+                "id" : user.id,
+                "nome" : user.nome,
+                },
+            }, 
+            status=status.HTTP_200_OK
+        )
+        
