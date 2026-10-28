@@ -168,13 +168,18 @@ class ItemViewSet(viewsets.ModelViewSet):
         if self.action != 'list':
             return itens
 
-        filtro = FiltroCardapioSerializer(data=self.request.query_params)
-        filtro.is_valid(raise_exception=True)
-        tipo = filtro.validated_data.get('tipo_categoria')
-        if tipo:
-            itens = itens.filter(categoria__tipo_categoria=tipo)
-        if 'disponivel' in filtro.validated_data:
-            itens = itens.filter(disponivel=filtro.validated_data['disponivel'])
+        # Pega os parâmetros da URL
+        query_params = self.request.query_params
+
+        # Só aplica o filtro se houver algum parâmetro na URL
+        if query_params:
+            filtro = FiltroCardapioSerializer(data=self.request.query_params)
+            filtro.is_valid(raise_exception=True)
+            tipo = filtro.validated_data.get('tipo_categoria')
+            if tipo:
+                itens = itens.filter(categoria__tipo_categoria=tipo)
+            if 'disponivel' in filtro.validated_data:
+                itens = itens.filter(disponivel=filtro.validated_data['disponivel'])
         return itens
 
 class ItensPedidoViewSet(viewsets.ModelViewSet):
