@@ -111,6 +111,42 @@ class Comanda(models.Model):
     def __str__(self):
         return f'Comanda #{self.id} -Mesa {self.mesa_id}'
 
+
+class Solicitacao(models.Model):
+    class TipoSolicitacao(models.TextChoices):
+        ATENDIMENTO = 'ATENDIMENTO', 'atendimento'
+        FECHAMENTO = 'FECHAMENTO', 'fechamento'
+
+    class StatusSolicitacao(models.TextChoices):
+        PENDENTE = 'PENDENTE', 'Pendente'
+        ATENDIDA = 'ATENDIDA', 'Atendida'
+        CANCELADA = 'CANCELADA', 'Cancelada'
+
+    id = models.BigAutoField(primary_key=True)
+    tipo = models.CharField(max_length=11,choices=TipoSolicitacao.choices,)
+    status = models.CharField(max_length=10,choices=StatusSolicitacao.choices,default=StatusSolicitacao.PENDENTE,)
+    data_solicitacao = models.DateTimeField(auto_now_add=True)
+    comanda = models.ForeignKey(
+        Comanda,
+        on_delete=models.PROTECT,
+        related_name='solicitacoes',
+        db_column='id_comanda',
+    )
+
+    class Meta:
+        db_table = 'solicitacao'
+        ordering = ['data_solicitacao']
+        indexes = [
+            models.Index(fields=['status', 'data_solicitacao']),
+            models.Index(fields=['comanda', 'status']), #precisa?
+        ]
+
+    def __str__(self):
+        return (
+            f'{self.get_tipo_display()} - ' 
+            f'Comanda {self.comanda_id} - {self.status}'
+        )
+
 class Pedido(models.Model):
     id = models.BigAutoField(primary_key=True)  # id_pedido
     concluido = models.BooleanField(default=False)

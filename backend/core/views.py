@@ -7,15 +7,18 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
 
+
+
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda
+    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao
 )
 from .serializers import (
     PedidoSerializer, CategoriaSerializer, GerenteSerializer, GarcomSerializer,
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
-    ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
-    FiltroCardapioSerializer,ComandaConsultaSerializer)
+    ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer, FiltroCardapioSerializer,
+    ComandaConsultaSerializer, SolicitacaoSerializer)
+
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -186,3 +189,46 @@ class ItensPromocaoViewSet(viewsets.ModelViewSet):
 class PromocaoViewSet(viewsets.ModelViewSet):
     queryset = Promocao.objects.all()
     serializer_class = PromocaoSerializer
+
+
+class SolicitacaoViewSet(viewsets.ModelViewSet):
+    queryset = Solicitacao.objects.select_related('comanda__mesa').all()
+    serializer_class = SolicitacaoSerializer
+
+    def get_queryset(self):
+        #Permite consultar apenas solicitações com determinado status
+        solicitacoes = super().get_queryset()
+        status_filtro = self.request.query_params.get('status')
+
+        if status_filtro:
+            solicitacoes = solicitacoes.filter(status=status_filtro)
+
+        return solicitacoes
+
+    def create(self, request, *args, **kwargs):
+        id_comanda = request.data.get('comanda')
+        if not id_comanda:
+            return Response(
+                {'erro': 'Informe o ID da comanda.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            comanda = Comanda.objects.get(
+                pk=id_comanda,
+                ativa=True
+            )
+        except (Comanda.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {'erro': 'Comanda não encontrada ou inativa.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(comanda=comanda)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED
+        )

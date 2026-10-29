@@ -11,33 +11,90 @@ export default function App() {
   const [categoriaAtual, setCategoriaAtual] = useState("bebidas");
   const [itensComanda, setItensComanda] = useState([]);
 
+  
+async function chamarGarcom() {
+  try {
+    const idComanda = localStorage.getItem("id_comanda");
+
+    if (!idComanda) {
+      alert("Não foi possível identificar a comanda.");
+      return;
+    }
+
+    const resposta = await fetch("/api/solicitacoes/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        tipo: "ATENDIMENTO",
+        comanda: Number(idComanda),
+      }),
+    });
+
+    const dados = await resposta.json();
+
+    if (!resposta.ok) {
+      throw new Error(
+        dados.erro ||
+        dados.detail ||
+        "Não foi possível chamar o garçom."
+      );
+    }
+
+    alert("Solicitação enviada! Aguarde o garçom.");
+  } catch (erro) {
+    alert(erro.message || "Erro ao conectar com o servidor.");
+  }
+}
+
+
   // consulta a API, qunado a tela de comanda é aberta
   useEffect(() => {
     if (paginaAtual !== "/comanda") return;
 
-    const buscarPedidos = async () => {
+    const buscarComanda = async () => {
       try {
-        const resposta = await fetch("/api/pedidos/");
+        const idMesa = localStorage.getItem("id_mesa_tablet");
 
-        if (!resposta.ok) {
-          throw new Error("Não foi possível consultar os pedidos.");
+        if (!idMesa) {
+          setItensComanda([]);
+          return;
         }
 
-        const pedidos = await resposta.json();
-        const idComanda = localStorage.getItem('id_comanda');
-        const itens = pedidos
-          .filter((pedido) => Number(pedido.comanda) === Number(idComanda))
-          .flatMap((pedido) => pedido.itens_pedido ?? []);
+        const resposta = await fetch( 
+          `/api/mesas/${idMesa}/comanda/`
+        );
+
+        const dados = await resposta.json();
+
+        if (!resposta.ok) {
+          throw new Error(
+            dados.erro || "Não foi possível consultar a comanda."
+          );
+        }
+
+        // Junta os itens de todos os pedidos da comanda.
+        const itens = (dados.pedidos ?? []).flatMap((pedido) =>
+          (pedido.itens ?? []).map((item) => ({
+            id: item.id,
+            item: { nome: item.nome },
+            preco: item.preco_unitario,
+            quantidade: item.quantidade,
+            status: item.status,
+          }))
+        );
 
         setItensComanda(itens);
       } catch (erro) {
-        console.error("Erro ao buscar os pedidos:", erro);
+        console.error("Erro ao buscar a comanda:", erro);
+        setItensComanda([]);
       }
     };
 
-    buscarPedidos();
+    buscarComanda();
 
-    const intervalo = setInterval(buscarPedidos, 5000);
+    const intervalo = setInterval(buscarComanda, 5000);
 
     return () => clearInterval(intervalo);
   }, [paginaAtual]);
@@ -61,6 +118,7 @@ export default function App() {
         paginaAtual={paginaAtual}
         onNavegar={setPaginaAtual}
         onSelecionarCategoria={setCategoriaAtual}
+        onChamarGarcom={chamarGarcom}
       />
 
       <main className="ml-64 flex-1 p-6">
@@ -89,4 +147,5 @@ export default function App() {
 
     </div>
   );
+
 }
