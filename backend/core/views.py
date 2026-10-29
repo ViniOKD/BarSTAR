@@ -7,7 +7,7 @@ from django.contrib.auth import authenticate, login, logout
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
+from rest_framework.permissions import AllowAny, DjangoModelPermissionsOrAnonReadOnly
 
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
@@ -51,15 +51,20 @@ class CategoriaViewSet(viewsets.ModelViewSet):
         if self.action != 'list':
             return categorias
 
-        filtro = FiltroCardapioSerializer(data=self.request.query_params)
-        filtro.is_valid(raise_exception=True)
-        tipo = filtro.validated_data.get('tipo_categoria')
-        if tipo:
-            categorias = categorias.filter(tipo_categoria=tipo)
-        if 'disponivel' in filtro.validated_data:
-            categorias = categorias.filter(
-                itens__disponivel=filtro.validated_data['disponivel'],
-            ).distinct()
+         # Pega os parâmetros da URL
+        query_params = self.request.query_params
+        
+        # Só aplica o filtro se houver algum parâmetro na URL
+        if query_params:
+            filtro = FiltroCardapioSerializer(data=self.request.query_params)
+            filtro.is_valid(raise_exception=True)
+            tipo = filtro.validated_data.get('tipo_categoria')
+            if tipo:
+                categorias = categorias.filter(tipo_categoria=tipo)
+            if 'disponivel' in filtro.validated_data:
+                categorias = categorias.filter(
+                    itens__disponivel=filtro.validated_data['disponivel'],
+                ).distinct()
         return categorias
 
 class AbrirComandaView(APIView):
@@ -161,8 +166,12 @@ class CozinhaViewSet(viewsets.ModelViewSet):
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemSerializer
-    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    #permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    
+    # Adicione esta linha temporária para liberar o desenvolvimento:
+    permission_classes = [AllowAny] # TODO: Voltar para a permissão original quando a tela de login existir
 
+    authentication_classes = []
     def get_queryset(self):
         itens = super().get_queryset()
         if self.action != 'list':
