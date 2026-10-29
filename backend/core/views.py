@@ -7,7 +7,7 @@ from django.contrib.auth import authenticate, login, logout
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, DjangoModelPermissionsOrAnonReadOnly
+from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
 
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
@@ -166,11 +166,8 @@ class CozinhaViewSet(viewsets.ModelViewSet):
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemSerializer
-    #permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
     
-    # Adicione esta linha temporária para liberar o desenvolvimento:
-    permission_classes = [AllowAny] # TODO: Voltar para a permissão original quando a tela de login existir
-
     authentication_classes = []
     def get_queryset(self):
         itens = super().get_queryset()
