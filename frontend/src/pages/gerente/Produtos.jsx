@@ -67,6 +67,9 @@ export default function Produtos() {
     (c) => String(c.id) === String(formData.categoria_id)
   );
 
+  const nomeCategoria = categoriaSelecionada?.nome?.toLowerCase() || "";
+  const isNaoAlcoolico = nomeCategoria.includes("não alcoólico") || nomeCategoria.includes("nao alcoolico") || nomeCategoria.includes("não alcoólicos") || nomeCategoria.includes("nao alcoolicos");
+
   const handleChange = (e) => {
     const { name, value, type, checked, files } = e.target;
 
@@ -76,6 +79,16 @@ export default function Produtos() {
         setFormData({ ...formData, imagem: arquivo });
         setPreviewImagem(URL.createObjectURL(arquivo));
       }
+    } else if (name === "categoria_id") {
+      const catAchada = categorias.find((c) => String(c.id) === String(value));
+      const catNome = catAchada?.nome?.toLowerCase() || "";
+      const ehSemAlcool = catNome.includes("não alcoólico") || catNome.includes("nao alcoolico") || catNome.includes("não alcoólicos") || catNome.includes("nao alcoolicos");
+
+      setFormData({
+        ...formData,
+        categoria_id: value,
+        teor_alcoolico: ehSemAlcool ? "0" : formData.teor_alcoolico
+      });
     } else {
       setFormData({
         ...formData,
@@ -102,7 +115,7 @@ export default function Produtos() {
       peso: produto.peso || "",
       tempo_preparo_minutos: produto.tempo_preparo_minutos || "",
       ponto_carne: produto.ponto_carne || "",
-      teor_alcoolico: produto.teor_alcoolico || "",
+      teor_alcoolico: produto.teor_alcoolico !== undefined && produto.teor_alcoolico !== null ? produto.teor_alcoolico : "",
       volume_ml: produto.volume_ml || "",
       imagem: null
     });
@@ -138,14 +151,36 @@ export default function Produtos() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (Number(formData.preco_unitario) <= 0) {
-      alert("O preço deve ser maior que zero!");
+    // Validação de Preço maior que zero
+    if (!formData.preco_unitario || Number(formData.preco_unitario) <= 0) {
+      alert("O preço do produto é obrigatório e deve ser maior que zero!");
       return;
     }
 
+    // Validações por Tipo de Categoria (Apenas se o usuário preencher algo)
+    if (categoriaSelecionada?.tipo_categoria === "PRATO") {
+      if (!formData.peso || Number(formData.peso) < 1) {
+        alert("O peso é obrigatório para pratos e deve ser de no mínimo 1g.");
+        return;
+      }
+      if (!formData.tempo_preparo_minutos || Number(formData.tempo_preparo_minutos) < 1) {
+        alert("O tempo de preparo é obrigatório para pratos e deve ser de no mínimo 1 minuto.");
+        return;
+      }
+    } else if (categoriaSelecionada?.tipo_categoria === "BEBIDA") {
+      if (!formData.volume_ml || Number(formData.volume_ml) < 1) {
+        alert("O volume é obrigatório para bebidas e deve ser de no mínimo 1 ml.");
+        return;
+      }
+      if (!isNaoAlcoolico && formData.teor_alcoolico !== "" && Number(formData.teor_alcoolico) < 0) {
+        alert("O teor alcoólico é obrigatório e não pode ser negativo.");
+        return;
+      }
+    }
+
     const data = new FormData();
-    data.append("nome", formData.nome);
-    data.append("descricao", formData.descricao);
+    data.append("nome", formData.nome.trim());
+    data.append("descricao", formData.descricao || "");
     data.append("preco_unitario", Number(formData.preco_unitario));
     data.append("categoria_id", Number(formData.categoria_id));
     data.append("disponivel", formData.disponivel);
@@ -156,12 +191,17 @@ export default function Produtos() {
     }
 
     if (categoriaSelecionada?.tipo_categoria === "PRATO") {
-      data.append("peso", Number(formData.peso));
-      data.append("tempo_preparo_minutos", Number(formData.tempo_preparo_minutos));
+      if (formData.peso) data.append("peso", Number(formData.peso));
+      if (formData.tempo_preparo_minutos) data.append("tempo_preparo_minutos", Number(formData.tempo_preparo_minutos));
       if (formData.ponto_carne) data.append("ponto_carne", formData.ponto_carne);
     } else if (categoriaSelecionada?.tipo_categoria === "BEBIDA") {
-      data.append("teor_alcoolico", Number(formData.teor_alcoolico));
-      data.append("volume_ml", Number(formData.volume_ml));
+      if (formData.volume_ml) data.append("volume_ml", Number(formData.volume_ml));
+      
+      if (isNaoAlcoolico) {
+        data.append("teor_alcoolico", 0);
+      } else if (formData.teor_alcoolico !== "") {
+        data.append("teor_alcoolico", Number(formData.teor_alcoolico));
+      }
     }
 
     try {
@@ -191,19 +231,13 @@ export default function Produtos() {
 
   // Lógica de filtro encadeado
   const produtosFiltrados = produtos.filter((produto) => {
-    // 1. Filtro por Nome
     const matchNome = produto.nome.toLowerCase().includes(buscaNome.toLowerCase());
-    
-    // 2. Filtro por Categoria
     const matchCategoria = filtroCategoria === "" || String(produto.categoria?.id || produto.categoria_id) === filtroCategoria;
-    
-    // 3. Filtro por Disponibilidade
     const matchDisponibilidade = 
       filtroDisponibilidade === "todos" ? true :
       filtroDisponibilidade === "disponivel" ? produto.disponivel === true :
       produto.disponivel === false;
 
-    // O produto só aparece se passar nos 3 filtros ao mesmo tempo
     return matchNome && matchCategoria && matchDisponibilidade;
   });
 
@@ -230,8 +264,6 @@ export default function Produtos() {
 
       {/* BARRA DE FILTROS */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4">
-        
-        {/* Busca por Nome */}
         <div className="flex-1 relative">
           <input 
             type="text" 
@@ -240,13 +272,11 @@ export default function Produtos() {
             onChange={(e) => setBuscaNome(e.target.value)}
             className="w-full border border-gray-300 p-2.5 pl-10 rounded-md focus:outline-none focus:border-hover focus:ring-1 focus:ring-hover text-gray-700"
           />
-          {/* Ícone de Lupa */}
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 absolute left-3 top-3 text-gray-400">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
           </svg>
         </div>
 
-        {/* Filtro por Categoria */}
         <div className="md:w-56">
           <select 
             value={filtroCategoria}
@@ -260,7 +290,6 @@ export default function Produtos() {
           </select>
         </div>
 
-        {/* Filtro por Status */}
         <div className="md:w-48">
           <select 
             value={filtroDisponibilidade}
@@ -272,7 +301,6 @@ export default function Produtos() {
             <option value="esgotado">Esgotados</option>
           </select>
         </div>
-        
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -289,7 +317,6 @@ export default function Produtos() {
             </tr>
           </thead>
           <tbody>
-            
             {(produtosFiltrados.length === 0) && !erroApi ? (
               <tr>
                 <td colSpan="7" className="p-4 text-center text-gray-500">
@@ -380,7 +407,7 @@ export default function Produtos() {
         </div>
       )}
 
-      {/* MODAL FORMATADO EM 2 COLUNAS (VISÃO ESTILO CARDÁPIO CLIENTE) */}
+      {/* MODAL */}
       {modalAberto && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-destaque rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl relative p-6 md:p-8">
@@ -397,7 +424,7 @@ export default function Produtos() {
 
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-8">
               
-              {/* COLUNA DA ESQUERDA: FOTO GRANDE (ESTILO VISÃO DO CLIENTE) */}
+              {/* COLUNA ESQUERDA: FOTO */}
               <div className="md:col-span-5 flex flex-col gap-3">
                 <label className="block text-sm font-bold text-header">Foto do Produto</label>
                 <div className="relative group w-full aspect-square bg-gray-200/60 rounded-2xl border-2 border-dashed border-gray-300 overflow-hidden flex items-center justify-center shadow-inner">
@@ -424,7 +451,7 @@ export default function Produtos() {
                 <p className="text-xs text-gray-500 text-center">Formatos aceitos: PNG, JPG ou WEBP.</p>
               </div>
 
-              {/* COLUNA DA DIREITA: FORMULÁRIO DE DADOS */}
+              {/* COLUNA DIREITA: DADOS */}
               <div className="md:col-span-7 flex flex-col gap-5">
                 <div>
                   <label className="block text-sm font-bold mb-2 text-header">Nome do Produto</label>
@@ -463,11 +490,11 @@ export default function Produtos() {
                   <div className="flex gap-4 bg-white p-4 rounded-md border border-gray-200">
                     <div className="w-1/2">
                       <label className="block text-sm font-bold mb-2 text-header">Peso (g)</label>
-                      <input required type="number" min="1" name="peso" value={formData.peso} onChange={handleChange} className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover text-header" />
+                      <input type="number" min="1" name="peso" required value={formData.peso} onChange={handleChange} className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover text-header" />
                     </div>
                     <div className="w-1/2">
                       <label className="block text-sm font-bold mb-2 text-header">Preparo (min)</label>
-                      <input required type="number" min="1" name="tempo_preparo_minutos" value={formData.tempo_preparo_minutos} onChange={handleChange} className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover text-header" />
+                      <input type="number" min="1" name="tempo_preparo_minutos" required value={formData.tempo_preparo_minutos} onChange={handleChange} className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover text-header" />
                     </div>
                   </div>
                 )}
@@ -476,11 +503,20 @@ export default function Produtos() {
                   <div className="flex gap-4 bg-white p-4 rounded-md border border-gray-200">
                     <div className="w-1/2">
                       <label className="block text-sm font-bold mb-2 text-header">Teor Alc. (%)</label>
-                      <input required type="number" min="0" step="0.1" name="teor_alcoolico" value={formData.teor_alcoolico} onChange={handleChange} className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover text-header" />
+                      <input 
+                        disabled={isNaoAlcoolico}
+                        type="number" 
+                        min="0" 
+                        step="0.1" 
+                        name="teor_alcoolico" 
+                        value={isNaoAlcoolico ? 0 : formData.teor_alcoolico} 
+                        onChange={handleChange} 
+                        className={`w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover ${isNaoAlcoolico ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'text-header'}`} 
+                      />
                     </div>
                     <div className="w-1/2">
                       <label className="block text-sm font-bold mb-2 text-header">Volume (ml)</label>
-                      <input required type="number" min="1" name="volume_ml" value={formData.volume_ml} onChange={handleChange} className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover text-header" />
+                      <input type="number" min="1" name="volume_ml" value={formData.volume_ml} onChange={handleChange} className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover text-header" />
                     </div>
                   </div>
                 )}
