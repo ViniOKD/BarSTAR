@@ -168,7 +168,6 @@ class ItemViewSet(viewsets.ModelViewSet):
     serializer_class = ItemSerializer
     permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
     
-    authentication_classes = []
     def get_queryset(self):
         itens = super().get_queryset()
         if self.action != 'list':
