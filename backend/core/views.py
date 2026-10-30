@@ -2,22 +2,23 @@ from django.db import connection, transaction
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
-from django.contrib.auth import authenticate, login, logout
-
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
 
+
+
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda
+    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao
 )
 from .serializers import (
     PedidoSerializer, CategoriaSerializer, GerenteSerializer, GarcomSerializer,
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
-    ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
-    FiltroCardapioSerializer,ComandaConsultaSerializer)
+    ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer, FiltroCardapioSerializer,
+    ComandaConsultaSerializer, SolicitacaoSerializer)
+
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -189,30 +190,45 @@ class PromocaoViewSet(viewsets.ModelViewSet):
     queryset = Promocao.objects.all()
     serializer_class = PromocaoSerializer
 
-class LogoutView(APIView):
-    def post(self, request):
-        logout(request)
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
+class SolicitacaoViewSet(viewsets.ModelViewSet):
+    queryset = Solicitacao.objects.select_related('comanda__mesa').all()
+    serializer_class = SolicitacaoSerializer
 
-class LoginView(APIView):
-    def post(self, request):
-        cpf = request.data.get('cpf')
-        senha = request.data.get('senha')
-        user = authenticate(request, username=cpf, password=senha)
-        if user is None:
+    def get_queryset(self):
+        #Permite consultar apenas solicitações com determinado status
+        solicitacoes = super().get_queryset()
+        status_filtro = self.request.query_params.get('status')
+
+        if status_filtro:
+            solicitacoes = solicitacoes.filter(status=status_filtro)
+
+        return solicitacoes
+
+    def create(self, request, *args, **kwargs):
+        id_comanda = request.data.get('comanda')
+        if not id_comanda:
             return Response(
-                {"erro": "Credenciais inválidas"}, 
-                status=status.HTTP_401_UNAUTHORIZED
+                {'erro': 'Informe o ID da comanda.'},
+                status=status.HTTP_400_BAD_REQUEST
             )
-        login(request, user)
-        
+
+        try:
+            comanda = Comanda.objects.get(
+                pk=id_comanda,
+                ativa=True
+            )
+        except (Comanda.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {'erro': 'Comanda não encontrada ou inativa.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(comanda=comanda)
+
         return Response(
-            {"mensagem": "Login realizado com sucesso.",
-            "gerente": {
-                "id" : user.id,
-                "nome" : user.nome,
-                },
-            }, 
-            status=status.HTTP_200_OK
+            serializer.data,
+            status=status.HTTP_201_CREATED
         )
