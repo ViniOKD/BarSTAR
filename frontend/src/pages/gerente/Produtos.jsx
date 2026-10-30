@@ -1,5 +1,21 @@
 import { useState, useEffect } from "react";
 
+// Função nativa para capturar o token CSRF dos cookies do navegador
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
 export default function Produtos() {
   const [produtos, setProdutos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -131,9 +147,15 @@ export default function Produtos() {
   const executarExclusao = async () => {
     if (!produtoParaExcluir) return;
 
+    // Pega o token de segurança
+    const csrftoken = getCookie('csrftoken');
+
     try {
       const resposta = await fetch(`/api/itens/${produtoParaExcluir.id}/`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: {
+          "X-CSRFToken": csrftoken // Envia o token na exclusão
+        }
       });
 
       if (resposta.ok) {
@@ -141,7 +163,12 @@ export default function Produtos() {
         setProdutoParaExcluir(null);
         buscarDados();
       } else {
-        alert("Erro ao excluir o produto.");
+        const textoErro = await resposta.text();
+        if (textoErro.includes("CSRF")) {
+          alert("Falha de segurança (CSRF). Recarregue a página e tente novamente.");
+        } else {
+          alert("Erro ao excluir o produto.");
+        }
       }
     } catch (erro) {
       console.error("Erro na requisição:", erro);
@@ -151,13 +178,11 @@ export default function Produtos() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validação de Preço maior que zero
     if (!formData.preco_unitario || Number(formData.preco_unitario) <= 0) {
       alert("O preço do produto é obrigatório e deve ser maior que zero!");
       return;
     }
 
-    // Validações por Tipo de Categoria (Apenas se o usuário preencher algo)
     if (categoriaSelecionada?.tipo_categoria === "PRATO") {
       if (!formData.peso || Number(formData.peso) < 1) {
         alert("O peso é obrigatório para pratos e deve ser de no mínimo 1g.");
@@ -184,7 +209,7 @@ export default function Produtos() {
     data.append("preco_unitario", Number(formData.preco_unitario));
     data.append("categoria_id", Number(formData.categoria_id));
     data.append("disponivel", formData.disponivel);
-    data.append("gerente", 1);
+    // data.append("gerente", 1); <-- REMOVIDO! O Django deve injetar isso via perform_create no viewsets igual nas categorias
 
     if (formData.imagem instanceof File) {
       data.append("imagem", formData.imagem);
@@ -204,12 +229,18 @@ export default function Produtos() {
       }
     }
 
+    // Pega o token de segurança
+    const csrftoken = getCookie('csrftoken');
+
     try {
       const metodo = editandoId ? "PUT" : "POST";
       const url = editandoId ? `/api/itens/${editandoId}/` : "/api/itens/";
 
       const resposta = await fetch(url, {
         method: metodo,
+        headers: {
+          "X-CSRFToken": csrftoken // Envia o token na criação/edição
+        },
         body: data
       });
 
@@ -218,9 +249,13 @@ export default function Produtos() {
         setModalAberto(false);
         buscarDados(); 
       } else {
-        const erros = await resposta.json();
-        alert("Erro ao salvar! Veja o console para detalhes.");
-        console.error("Erros do Django:", erros);
+        const erros = await resposta.json().catch(() => ({}));
+        if (erros.detail && erros.detail.includes("CSRF")) {
+           alert("Falha de segurança (CSRF). Recarregue a página e tente novamente.");
+        } else {
+           alert("Erro ao salvar! Veja o console para detalhes.");
+           console.error("Erros do Django:", erros);
+        }
       }
     } catch (erro) {
       console.error("Erro na requisição:", erro);
