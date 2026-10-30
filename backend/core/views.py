@@ -44,7 +44,8 @@ class PedidoViewSet(viewsets.ModelViewSet):
 class CategoriaViewSet(viewsets.ModelViewSet):
     queryset = Categoria.objects.all()
     serializer_class = CategoriaSerializer
-    #permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+   
 
     def get_queryset(self):
         categorias = super().get_queryset()
@@ -176,6 +177,7 @@ class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemSerializer
     permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    
 
     def get_queryset(self):
         itens = super().get_queryset()
