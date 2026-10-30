@@ -21,7 +21,7 @@ class CategoriaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Categoria
         fields = '__all__'
-        extra_kwards = {
+        extra_kwargs = {
             'nome': {
                 'error_messages': {
                     'unique': "Já existe uma categoria cadastrada com este nome."
