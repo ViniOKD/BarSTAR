@@ -58,6 +58,18 @@ class ItemSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ['gerente']
 
+    def validate(self, attrs):
+        categoria = attrs.get('categoria', getattr(self.instance, 'categoria', None))
+        if categoria.tipo_categoria == Categoria.TipoCategoria.BEBIDA:
+            teor = attrs.get('teor_alcoolico', getattr(self.instance, 'teor_alcoolico', None))
+            if teor is None or not 0 <= teor <= 100:
+                raise serializers.ValidationError({
+                    'teor_alcoolico': 'Informe um teor alcoólico entre 0 e 100%. Use 0 para bebidas sem álcool.',
+                })
+        else:
+            attrs['teor_alcoolico'] = None
+        return attrs
+
 
 class ItensPedidoSerializer(serializers.ModelSerializer):
     item = ItemSerializer(read_only=True)

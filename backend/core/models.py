@@ -266,8 +266,8 @@ class Item(models.Model):
             self.volume_ml = None
 
         elif categoria.tipo_categoria == Categoria.TipoCategoria.BEBIDA:
-            if self.teor_alcoolico is None or self.teor_alcoolico < 0:
-                raise ValidationError({'teor_alcoolico': 'O teor alcoólico é obrigatório e não pode ser negativo.'})
+            if self.teor_alcoolico is None or not 0 <= self.teor_alcoolico <= 100:
+                raise ValidationError({'teor_alcoolico': 'Informe um teor alcoólico entre 0 e 100%. Use 0 para bebidas sem álcool.'})
             if self.volume_ml is None or self.volume_ml < 1:
                 raise ValidationError({'volume_ml': 'O volume é obrigatório para bebidas e deve ser de no mínimo 1 ml.'})
            

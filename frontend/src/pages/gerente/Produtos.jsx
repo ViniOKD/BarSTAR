@@ -83,9 +83,6 @@ export default function Produtos() {
     (c) => String(c.id) === String(formData.categoria_id)
   );
 
-  const nomeCategoria = categoriaSelecionada?.nome?.toLowerCase() || "";
-  const isNaoAlcoolico = nomeCategoria.includes("não alcoólico") || nomeCategoria.includes("nao alcoolico") || nomeCategoria.includes("não alcoólicos") || nomeCategoria.includes("nao alcoolicos");
-
   const handleChange = (e) => {
     const { name, value, type, checked, files } = e.target;
 
@@ -95,16 +92,6 @@ export default function Produtos() {
         setFormData({ ...formData, imagem: arquivo });
         setPreviewImagem(URL.createObjectURL(arquivo));
       }
-    } else if (name === "categoria_id") {
-      const catAchada = categorias.find((c) => String(c.id) === String(value));
-      const catNome = catAchada?.nome?.toLowerCase() || "";
-      const ehSemAlcool = catNome.includes("não alcoólico") || catNome.includes("nao alcoolico") || catNome.includes("não alcoólicos") || catNome.includes("nao alcoolicos");
-
-      setFormData({
-        ...formData,
-        categoria_id: value,
-        teor_alcoolico: ehSemAlcool ? "0" : formData.teor_alcoolico
-      });
     } else {
       setFormData({
         ...formData,
@@ -197,8 +184,9 @@ export default function Produtos() {
         alert("O volume é obrigatório para bebidas e deve ser de no mínimo 1 ml.");
         return;
       }
-      if (!isNaoAlcoolico && formData.teor_alcoolico !== "" && Number(formData.teor_alcoolico) < 0) {
-        alert("O teor alcoólico é obrigatório e não pode ser negativo.");
+      const teor = Number(formData.teor_alcoolico);
+      if (formData.teor_alcoolico === "" || !Number.isFinite(teor) || teor < 0 || teor > 100) {
+        alert("Informe um teor alcoólico entre 0 e 100%. Use 0 para bebidas sem álcool.");
         return;
       }
     }
@@ -221,12 +209,7 @@ export default function Produtos() {
       if (formData.ponto_carne) data.append("ponto_carne", formData.ponto_carne);
     } else if (categoriaSelecionada?.tipo_categoria === "BEBIDA") {
       if (formData.volume_ml) data.append("volume_ml", Number(formData.volume_ml));
-      
-      if (isNaoAlcoolico) {
-        data.append("teor_alcoolico", 0);
-      } else if (formData.teor_alcoolico !== "") {
-        data.append("teor_alcoolico", Number(formData.teor_alcoolico));
-      }
+      data.append("teor_alcoolico", Number(formData.teor_alcoolico));
     }
 
     // Pega o token de segurança
@@ -252,6 +235,8 @@ export default function Produtos() {
         const erros = await resposta.json().catch(() => ({}));
         if (erros.detail && erros.detail.includes("CSRF")) {
            alert("Falha de segurança (CSRF). Recarregue a página e tente novamente.");
+        } else if (erros.teor_alcoolico) {
+           alert(erros.teor_alcoolico.join("\n"));
         } else {
            alert("Erro ao salvar! Veja o console para detalhes.");
            console.error("Erros do Django:", erros);
@@ -537,17 +522,21 @@ export default function Produtos() {
                 {categoriaSelecionada?.tipo_categoria === "BEBIDA" && (
                   <div className="flex gap-4 bg-white p-4 rounded-md border border-gray-200">
                     <div className="w-1/2">
-                      <label className="block text-sm font-bold mb-2 text-header">Teor Alc. (%)</label>
+                      <label htmlFor="teor-alcoolico" className="block text-sm font-bold mb-2 text-header">Teor alcoólico (%)</label>
                       <input 
-                        disabled={isNaoAlcoolico}
+                        id="teor-alcoolico"
+                        required
                         type="number" 
                         min="0" 
+                        max="100"
                         step="0.1" 
                         name="teor_alcoolico" 
-                        value={isNaoAlcoolico ? 0 : formData.teor_alcoolico} 
+                        value={formData.teor_alcoolico}
                         onChange={handleChange} 
-                        className={`w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover ${isNaoAlcoolico ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'text-header'}`} 
+                        aria-describedby="teor-alcoolico-ajuda"
+                        className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover text-header"
                       />
+                      <p id="teor-alcoolico-ajuda" className="mt-1 text-xs text-gray-500">Informe 0 para bebidas sem álcool.</p>
                     </div>
                     <div className="w-1/2">
                       <label className="block text-sm font-bold mb-2 text-header">Volume (ml)</label>
