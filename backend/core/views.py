@@ -1,4 +1,5 @@
 from django.db import connection, transaction
+from django.db.models.deletion import ProtectedError
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
@@ -170,6 +171,20 @@ class ItemViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(gerente=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {
+                    'detail': (
+                        'Este produto possui vínculos que impedem sua exclusão. '
+                        'Você pode torná-lo indisponível para retirá-lo do cardápio.'
+                    ),
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
     
     def get_queryset(self):
         itens = super().get_queryset()

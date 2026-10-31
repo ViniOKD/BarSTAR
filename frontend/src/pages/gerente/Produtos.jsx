@@ -25,6 +25,7 @@ export default function Produtos() {
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [produtoParaExcluir, setProdutoParaExcluir] = useState(null); 
+  const [erroExclusao, setErroExclusao] = useState("");
   const [mensagemSucesso, setMensagemSucesso] = useState(""); 
 
   const [buscaNome, setBuscaNome] = useState("");
@@ -128,11 +129,13 @@ export default function Produtos() {
   };
 
   const confirmarExclusao = (produto) => {
+    setErroExclusao("");
     setProdutoParaExcluir(produto);
   };
 
   const executarExclusao = async () => {
     if (!produtoParaExcluir) return;
+    setErroExclusao("");
 
     // Pega o token de segurança
     const csrftoken = getCookie('csrftoken');
@@ -149,6 +152,9 @@ export default function Produtos() {
         mostrarSucesso("Produto excluído com sucesso!");
         setProdutoParaExcluir(null);
         buscarDados();
+      } else if (resposta.status === 409) {
+        const erro = await resposta.json().catch(() => ({}));
+        setErroExclusao(erro.detail || "Este produto possui vínculos que impedem sua exclusão. Torne-o indisponível para retirá-lo do cardápio.");
       } else {
         const textoErro = await resposta.text();
         if (textoErro.includes("CSRF")) {
@@ -411,6 +417,11 @@ export default function Produtos() {
             <p className="text-header/80 mb-8">
               Esta ação não pode ser desfeita. Tem certeza que deseja excluir <strong>{produtoParaExcluir.nome}</strong>?
             </p>
+            {erroExclusao && (
+              <p role="alert" className="mb-6 rounded-md bg-red-100 p-3 text-sm text-red-700">
+                {erroExclusao}
+              </p>
+            )}
             <div className="flex justify-center gap-4">
               <button 
                 onClick={() => setProdutoParaExcluir(null)} 
