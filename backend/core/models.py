@@ -256,18 +256,21 @@ class Item(models.Model):
             return
 
         if categoria.tipo_categoria == Categoria.TipoCategoria.PRATO:
-            if self.peso is None:
-                raise ValidationError({'peso': 'Peso é obrigatório para pratos.'})
-            if self.tempo_preparo_minutos is None:
-                raise ValidationError({'tempo_preparo_minutos': 'Tempo de preparo é obrigatório para pratos.'})
+            if self.peso is None or self.peso < 1:
+                raise ValidationError({'peso': 'O peso é obrigatório para pratos e deve ser de no mínimo 1g.'})
+            if self.tempo_preparo_minutos is None or self.tempo_preparo_minutos < 1:
+                raise ValidationError({'tempo_preparo_minutos': 'O tempo de preparo é obrigatório e deve ser de no mínimo 1 minuto.'})
+            
             # Bebida fields devem ser None
             self.teor_alcoolico = None
             self.volume_ml = None
+
         elif categoria.tipo_categoria == Categoria.TipoCategoria.BEBIDA:
-            if self.teor_alcoolico is None:
-                raise ValidationError({'teor_alcoolico': 'Teor alcoólico é obrigatório para bebidas.'})
-            if self.volume_ml is None:
-                raise ValidationError({'volume_ml': 'Volume (ml) é obrigatório para bebidas.'})
+            if self.teor_alcoolico is None or not 0 <= self.teor_alcoolico <= 100:
+                raise ValidationError({'teor_alcoolico': 'Informe um teor alcoólico entre 0 e 100%. Use 0 para bebidas sem álcool.'})
+            if self.volume_ml is None or self.volume_ml < 1:
+                raise ValidationError({'volume_ml': 'O volume é obrigatório para bebidas e deve ser de no mínimo 1 ml.'})
+           
             # Prato fields devem ser None
             self.peso = None
             self.tempo_preparo_minutos = None
