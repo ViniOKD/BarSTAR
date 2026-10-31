@@ -46,6 +46,7 @@ class CategoriaViewSet(viewsets.ModelViewSet):
     queryset = Categoria.objects.all()
     serializer_class = CategoriaSerializer
     permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+   
 
     def get_queryset(self):
         categorias = super().get_queryset()
@@ -67,6 +68,20 @@ class CategoriaViewSet(viewsets.ModelViewSet):
                     itens__disponivel=filtro.validated_data['disponivel'],
                 ).distinct()
         return categorias
+
+    def destroy(self, request, *args, **kwargs):
+        categoria = self.get_object()
+
+        #impede exclusão da categoria com itens vinculados
+        if categoria.itens.exists():
+            return Response(
+                {"erro": "Não é possível excluir esta categoria porque existem produtos vinculados a ela"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Permite exclusão de categoria
+        self.perform_destroy(categoria)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 class AbrirComandaView(APIView):
     def post(self, request, id_mesa):
@@ -168,6 +183,7 @@ class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemSerializer
     permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    
 
     def perform_create(self, serializer):
         serializer.save(gerente=self.request.user)
