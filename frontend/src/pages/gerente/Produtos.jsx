@@ -84,6 +84,10 @@ export default function Produtos() {
     (c) => String(c.id) === String(formData.categoria_id)
   );
 
+  const tipoCategoria = categoriaSelecionada?.tipo_categoria;
+  const ehPrato = tipoCategoria === "PRATO";
+  const ehBebida = tipoCategoria === "BEBIDA";
+
   const handleChange = (e) => {
     const { name, value, type, checked, files } = e.target;
 
@@ -176,7 +180,7 @@ export default function Produtos() {
       return;
     }
 
-    if (categoriaSelecionada?.tipo_categoria === "PRATO") {
+    if (ehPrato) {
       if (!formData.peso || Number(formData.peso) < 1) {
         alert("O peso é obrigatório para pratos e deve ser de no mínimo 1g.");
         return;
@@ -185,7 +189,7 @@ export default function Produtos() {
         alert("O tempo de preparo é obrigatório para pratos e deve ser de no mínimo 1 minuto.");
         return;
       }
-    } else if (categoriaSelecionada?.tipo_categoria === "BEBIDA") {
+    } else if (ehBebida) {
       if (!formData.volume_ml || Number(formData.volume_ml) < 1) {
         alert("O volume é obrigatório para bebidas e deve ser de no mínimo 1 ml.");
         return;
@@ -209,11 +213,11 @@ export default function Produtos() {
       data.append("imagem", formData.imagem);
     }
 
-    if (categoriaSelecionada?.tipo_categoria === "PRATO") {
+    if (ehPrato) {
       if (formData.peso) data.append("peso", Number(formData.peso));
       if (formData.tempo_preparo_minutos) data.append("tempo_preparo_minutos", Number(formData.tempo_preparo_minutos));
       if (formData.ponto_carne) data.append("ponto_carne", formData.ponto_carne);
-    } else if (categoriaSelecionada?.tipo_categoria === "BEBIDA") {
+    } else if (ehBebida) {
       if (formData.volume_ml) data.append("volume_ml", Number(formData.volume_ml));
       data.append("teor_alcoolico", Number(formData.teor_alcoolico));
     }
@@ -519,7 +523,7 @@ export default function Produtos() {
                   </div>
                 </div>
 
-                {categoriaSelecionada?.tipo_categoria === "PRATO" && (
+                {ehPrato && (
                   <div className="flex gap-4 bg-white p-4 rounded-md border border-gray-200">
                     <div className="w-1/2">
                       <label className="block text-sm font-bold mb-2 text-header">Peso (g)</label>
@@ -532,7 +536,7 @@ export default function Produtos() {
                   </div>
                 )}
 
-                {categoriaSelecionada?.tipo_categoria === "BEBIDA" && (
+                {ehBebida && (
                   <div className="flex gap-4 bg-white p-4 rounded-md border border-gray-200">
                     <div className="w-1/2">
                       <label htmlFor="teor-alcoolico" className="block text-sm font-bold mb-2 text-header">Teor alcoólico (%)</label>
