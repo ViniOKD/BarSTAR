@@ -167,6 +167,9 @@ class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemSerializer
     permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+
+    def perform_create(self, serializer):
+        serializer.save(gerente=self.request.user)
     
     def get_queryset(self):
         itens = super().get_queryset()
