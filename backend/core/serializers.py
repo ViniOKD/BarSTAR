@@ -58,6 +58,11 @@ class ItemSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ['gerente']
 
+    def validate_preco_unitario(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('O preço deve ser maior que zero.')
+        return value
+
     def validate(self, attrs):
         categoria = attrs.get('categoria', getattr(self.instance, 'categoria', None))
         if categoria.tipo_categoria == Categoria.TipoCategoria.BEBIDA:

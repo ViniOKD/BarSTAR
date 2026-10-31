@@ -235,6 +235,8 @@ export default function Produtos() {
         const erros = await resposta.json().catch(() => ({}));
         if (erros.detail && erros.detail.includes("CSRF")) {
            alert("Falha de segurança (CSRF). Recarregue a página e tente novamente.");
+        } else if (erros.preco_unitario) {
+           alert(erros.preco_unitario.join("\n"));
         } else if (erros.teor_alcoolico) {
            alert(erros.teor_alcoolico.join("\n"));
         } else {
