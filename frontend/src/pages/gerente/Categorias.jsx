@@ -20,6 +20,7 @@ export default function Categorias() {
   const [categorias, setCategorias] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erroApi, setErroApi] = useState(null);
+  const [erroFormulario, setErroFormulario] = useState("");
   
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
@@ -60,6 +61,7 @@ export default function Categorias() {
 
   const salvarCategoria = async (e) => {
     e.preventDefault();
+    setErroFormulario("");
     setErroApi(null);
     
     const metodo = editandoId ? "PUT" : "POST";
@@ -101,7 +103,7 @@ export default function Categorias() {
       fecharModal();
       buscarCategorias();
     } catch (err) {
-      mostrarErro(err.message);
+      setErroFormulario(err.message);
     }
   };
 
@@ -147,6 +149,7 @@ export default function Categorias() {
   };
 
   const abrirModalNovo = () => {
+    setErroFormulario("");
     setEditandoId(null);
     setNome("");
     setTipoCategoria("PRATO");
@@ -154,6 +157,7 @@ export default function Categorias() {
   };
 
   const abrirModalEditar = (cat) => {
+    setErroFormulario("");
     setEditandoId(cat.id);
     setNome(cat.nome);
     setTipoCategoria(cat.tipo_categoria);
@@ -161,6 +165,7 @@ export default function Categorias() {
   };
 
   const fecharModal = () => {
+    setErroFormulario("");
     setModalAberto(false);
     setEditandoId(null);
   };
@@ -293,6 +298,12 @@ export default function Categorias() {
             </h2>
 
             <form onSubmit={salvarCategoria} className="flex flex-col gap-5">
+              {erroFormulario && (
+                <p role="alert" className="bg-red-100 text-red-700 p-3 rounded-md">
+                  {erroFormulario}
+                </p>
+              )}
+
               <div>
                 <label className="block text-sm font-bold mb-2 text-header">Nome da Categoria</label>
                 <input 
