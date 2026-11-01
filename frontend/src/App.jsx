@@ -13,6 +13,10 @@ import Categorias from "./pages/gerente/Categorias";
 import Produtos from "./pages/gerente/Produtos";
 import Promocoes from "./pages/gerente/Promocoes";
 import Comandas from "./pages/gerente/Comandas";
+import PainelGarcom from "./pages/garcom/PainelGarcom";
+import SolicitacoesGarcom from "./pages/garcom/SolicitacoesGarcom";
+import PedidosGarcom from "./pages/garcom/PedidosGarcom";
+import { SidebarGarcom } from "./components/SidebarGarcom";
 
 const telasGerente = {
   "/gerente": <PainelGerente />,
@@ -22,6 +26,12 @@ const telasGerente = {
   "/gerente/produtos": <Produtos />,
   "/gerente/promocoes": <Promocoes />,
   "/gerente/comandas": <Comandas />,
+};
+
+const telasGarcom = {
+  "/garcom": <PainelGarcom />,
+  "/garcom/solicitacoes": <SolicitacoesGarcom />,
+  "/garcom/pedidos": <PedidosGarcom />,
 };
 
 export default function App() {
@@ -144,6 +154,17 @@ async function chamarGarcom() {
       </>
     );
   }
+
+  if (Object.hasOwn(telasGarcom, paginaAtual)) {
+  return (
+    <>
+      <SidebarGarcom paginaAtual={paginaAtual} />
+      <main className="ml-64 min-h-screen bg-fundo p-8">
+        {telasGarcom[paginaAtual]}
+      </main>
+    </>
+  );
+}
 
   // Se já passou possui comanda, exibe a estrutura completa do Cardápio
   return (

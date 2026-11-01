@@ -2,12 +2,13 @@ from django.db import connection, transaction
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
+from django.contrib.auth import authenticate, login, logout
+
+from rest_framework.decorators import action
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
-
-
 
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
@@ -16,9 +17,8 @@ from .models import (
 from .serializers import (
     PedidoSerializer, CategoriaSerializer, GerenteSerializer, GarcomSerializer,
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
-    ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer, FiltroCardapioSerializer,
-    ComandaConsultaSerializer, SolicitacaoSerializer)
-
+    ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
+    FiltroCardapioSerializer,ComandaConsultaSerializer, SolicitacaoSerializer)
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -190,20 +190,41 @@ class PromocaoViewSet(viewsets.ModelViewSet):
     queryset = Promocao.objects.all()
     serializer_class = PromocaoSerializer
 
-
 class SolicitacaoViewSet(viewsets.ModelViewSet):
     queryset = Solicitacao.objects.select_related('comanda__mesa').all()
     serializer_class = SolicitacaoSerializer
 
     def get_queryset(self):
-        #Permite consultar apenas solicitações com determinado status
+        #Permite consultar solicitações com determinado status
         solicitacoes = super().get_queryset()
+        
         status_filtro = self.request.query_params.get('status')
+        id_mesa = self.request.query_params.get('mesa')
 
         if status_filtro:
             solicitacoes = solicitacoes.filter(status=status_filtro)
 
+        if id_mesa:
+            solicitacoes = solicitacoes.filter(comanda__mesa_id=id_mesa)
+
         return solicitacoes
+
+    @action(detail=True, methods=['patch'], url_path='atender')
+    def atender(self, request, pk=None):
+        solicitacao = self.get_object()
+
+        if solicitacao.status != Solicitacao.StatusSolicitacao.PENDENTE:
+            return Response(
+                {'erro': 'Apenas solicitações pendentes podem ser atendidas.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        solicitacao.status = Solicitacao.StatusSolicitacao.ATENDIDA
+        solicitacao.save()
+
+        serializer = self.get_serializer(solicitacao)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         id_comanda = request.data.get('comanda')
@@ -231,4 +252,32 @@ class SolicitacaoViewSet(viewsets.ModelViewSet):
         return Response(
             serializer.data,
             status=status.HTTP_201_CREATED
+        )
+
+class LogoutView(APIView):
+    def post(self, request):
+        logout(request)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class LoginView(APIView):
+    def post(self, request):
+        cpf = request.data.get('cpf')
+        senha = request.data.get('senha')
+        user = authenticate(request, username=cpf, password=senha)
+        if user is None:
+            return Response(
+                {"erro": "Credenciais inválidas"}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        login(request, user)
+        
+        return Response(
+            {"mensagem": "Login realizado com sucesso.",
+            "gerente": {
+                "id" : user.id,
+                "nome" : user.nome,
+                },
+            }, 
+            status=status.HTTP_200_OK
         )

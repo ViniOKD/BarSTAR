@@ -141,7 +141,6 @@ class Comanda(models.Model):
     def __str__(self):
         return f'Comanda #{self.id} -Mesa {self.mesa_id}'
 
-
 class Solicitacao(models.Model):
     class TipoSolicitacao(models.TextChoices):
         ATENDIMENTO = 'ATENDIMENTO', 'atendimento'
@@ -176,6 +175,7 @@ class Solicitacao(models.Model):
             f'{self.get_tipo_display()} - ' 
             f'Comanda {self.comanda_id} - {self.status}'
         )
+
 
 class Pedido(models.Model):
     id = models.BigAutoField(primary_key=True)  # id_pedido
@@ -408,5 +408,3 @@ class ItensPromocao(models.Model):
 
     def __str__(self):
         return f'{self.item} na {self.promocao}'
-
-

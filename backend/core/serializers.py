@@ -2,7 +2,7 @@ import re
 from rest_framework import serializers
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda,Solicitacao
+    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao
 )
 from decimal import Decimal
 import phonenumbers
@@ -124,7 +124,7 @@ class AbrirComandaSerializer(serializers.Serializer):
         if len(tel_numeros) < 10:
             raise serializers.ValidationError("O número de telefone informado é inválido. Inclua o DDD.")
         return tel_numeros
-    
+
 class ItemComandaSerializer(serializers.ModelSerializer): #estrutura itens e calcula o subtotal
     nome = serializers.CharField(source="item.nome", read_only=True)
     preco_unitario = serializers.DecimalField(source="preco",max_digits=10,decimal_places=2,read_only=True,)
@@ -132,7 +132,7 @@ class ItemComandaSerializer(serializers.ModelSerializer): #estrutura itens e cal
 
     class Meta:
         model = ItensPedido
-        fields = ["id", "nome", "quantidade", "preco_unitario", "subtotal", "status"]
+        fields = ["id", "nome", "quantidade", "preco_unitario", "subtotal"]
 
     def get_subtotal(self, obj):
         return obj.preco * obj.quantidade
@@ -143,6 +143,7 @@ class PedidoComandaSerializer(serializers.ModelSerializer): #junta os itens de c
     class Meta:
         model = Pedido
         fields = ["id", "data_pedido", "concluido", "itens"]
+
 
 class ComandaConsultaSerializer(serializers.ModelSerializer):
     mesa = serializers.IntegerField(source="mesa_id", read_only=True)
@@ -167,7 +168,6 @@ class ComandaConsultaSerializer(serializers.ModelSerializer):
         if not phonenumbers.is_valid_number(parsed):
             raise serializers.ValidationError("O número de telefone informado é inválido.")
         return value
-    
 
 class SolicitacaoSerializer(serializers.ModelSerializer):
     comanda = serializers.PrimaryKeyRelatedField(queryset=Comanda.objects.filter(ativa=True))
