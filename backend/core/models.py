@@ -303,6 +303,7 @@ class ItensPedido(models.Model):
     )
     preco = models.DecimalField(max_digits=10, decimal_places=2)  # preço no momento do pedido
     quantidade = models.PositiveIntegerField()
+    observacoes = models.TextField(blank=True, default="")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.EM_PREPARO,)
 
     class Meta:

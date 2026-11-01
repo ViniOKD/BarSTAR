@@ -85,7 +85,7 @@ class ItensPedidoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ItensPedido
-        fields = ['id','item','item_id','pedido_id','preco','quantidade', 'status']
+        fields = ['id','item','item_id','pedido_id','preco','quantidade', 'observacoes', 'status']
 
 class ItensPromocaoSerializer(serializers.ModelSerializer):
     item = ItemSerializer(read_only=True)
