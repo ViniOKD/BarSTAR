@@ -7,9 +7,9 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
+from rest_framework.exceptions import ValidationError
 from django.utils import timezone
-from decimal import Decimal
-
+from .services.dar_preco import calcular_preco_final
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
     Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda
@@ -226,8 +226,9 @@ class EnviarPedidoView(APIView):
                     ItensPromocao.objects
                     .filter(
                         item=item,
+                        promocao__removida_em__isnull=True,
                         promocao__data_inicio__lte=agora,
-                        promocao__data_fim__gte=agora
+                        promocao__data_fim__gt=agora
                     )
                     .select_related("promocao")
                     .order_by("-promocao__data_inicio")
@@ -236,14 +237,21 @@ class EnviarPedidoView(APIView):
                 preco = item.preco_unitario
 
                 if promocao_item:
-                    desconto = Decimal(
-                        str(promocao_item.promocao.desconto_percentual)
-                    )
-                    preco = preco * (Decimal("1") - desconto / Decimal("100"))
+                    try:
+                        preco = calcular_preco_final(
+                            item.preco_unitario,
+                            promocao_item.promocao.desconto_percentual,
+                        )
+                    except ValueError as erro:
+                        raise ValidationError({"erro": str(erro)})
                 ItensPedido.objects.create(
                     pedido=pedidos_criados[cozinha.id],
                     item=item,
                     preco=preco,
+                    preco_original=item.preco_unitario,
+                    nome_item_registrado=item.nome,
+                    promocao_aplicada=promocao_item.promocao if promocao_item else None,
+                    nome_promocao_registrada=promocao_item.promocao.nome if promocao_item else "",
                     quantidade=quantidade,
                     observacoes=item_dados.get("observacoes", "")
                 )

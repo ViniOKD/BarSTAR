@@ -302,6 +302,17 @@ class ItensPedido(models.Model):
         db_column='id_pedido',
     )
     preco = models.DecimalField(max_digits=10, decimal_places=2)  # preço no momento do pedido
+    nome_item_registrado = models.CharField(max_length=50, blank=True, default="")  # nome do item no momento do pedido
+    preco_original = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)  
+    promocao_aplicada = models.ForeignKey(
+        "Promocao",
+        on_delete=models.PROTECT,
+        related_name='vendas',
+        db_column='id_promocao_aplicada',
+        blank=True,
+        null=True,
+    )
+    nome_promocao_registrada = models.CharField(max_length=50, blank=True, default="") 
     quantidade = models.PositiveIntegerField()
     observacoes = models.TextField(blank=True, default="")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.EM_PREPARO,)
@@ -323,10 +334,12 @@ class ItensPedido(models.Model):
 
 class Promocao(models.Model):
     id = models.BigAutoField(primary_key=True)  # id_promocao
+    nome = models.CharField(max_length=50, blank=False)
     desconto_percentual = models.FloatField()  # ex: 10.0 para 10%
     data_inicio = models.DateTimeField()
     data_fim = models.DateTimeField()
-    descricao = models.TextField(blank=True, default='')
+    descricao = models.TextField(blank=True, default="")
+    removida_em = models.DateTimeField(null=True, blank=True)
     gerente = models.ForeignKey(
         Gerente,
         on_delete=models.PROTECT,
@@ -342,17 +355,21 @@ class Promocao(models.Model):
                 check=Q(data_fim__gt=models.F('data_inicio')),
                 name='promocao_data_fim_apos_inicio',
             ),
+            CheckConstraint(
+                check=Q(desconto_percentual__gt=0, desconto_percentual__lt=100),
+                name='promocao_percentual_valido',
+            ),
         ]
 
     def __str__(self):
-        return f'Promoção #{self.id} ({self.desconto_percentual}%)'
+        return f'Promoção #{self.id} -> {self.nome} ({self.desconto_percentual}%)'
 
 
 class ItensPromocao(models.Model):
     """Tabela intermediária Item ↔ Promocao com data."""
     item = models.ForeignKey(
         Item,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='itens_promocao',
         db_column='id_item',
     )
