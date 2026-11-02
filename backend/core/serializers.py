@@ -6,6 +6,9 @@ from .models import (
 )
 from decimal import Decimal
 import phonenumbers
+from django.db.models import prefetch_related_objects
+from django.utils import timezone
+from .services.promocoes import salvar_promocao
 
 # Os serializers convertem dados do banco de dados para formato JSON
 
@@ -94,10 +97,107 @@ class ItensPromocaoSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class PromocaoSerializer(serializers.ModelSerializer):
-    itens_promocao = ItensPromocaoSerializer(many=True,read_only=True)
+    # Recebe uma lista não vazia de IDs dos itens.
+    itens = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False,
+        write_only=True,
+    )
+
+    # Retorna os detalhes dos itens vinculados à promoção.
+    itens_promocao = ItensPromocaoSerializer(many=True, read_only=True)
+
+    # Obtém a situação da promoção pelo método get_situacao.
+    situacao = serializers.SerializerMethodField()
+
     class Meta:
         model = Promocao
-        fields = '__all__'
+        fields = [
+            "id", "nome", "descricao", "desconto_percentual",
+            "data_inicio", "data_fim", "gerente", "situacao",
+            "itens", "itens_promocao",
+        ]
+        read_only_fields = ["id", "gerente", "situacao"]
+
+    def to_internal_value(self, data):
+        # Verifica se os dados recebidos são um objeto JSON.
+        if not isinstance(data, dict):
+            raise serializers.ValidationError("Envie um objeto JSON.")
+
+        # Identifica os campos que o cliente pode enviar.
+        permitidos = []
+        for nome, campo in self.fields.items():
+            if not campo.read_only:
+                permitidos.append(nome)
+
+        # Rejeita campos desconhecidos ou definidos como somente leitura.
+        erros = {}
+        for nome in data:
+            if nome not in permitidos:
+                erros[nome] = "Campo não permitido."
+
+        if erros:
+            raise serializers.ValidationError(erros)
+
+        # Impede que true e false sejam enviados como desconto.
+        if isinstance(data.get("desconto_percentual"), bool):
+            raise serializers.ValidationError({
+                "desconto_percentual": "Informe um número."
+            })
+
+        # Executa a conversão e as validações padrão do serializer.
+        return super().to_internal_value(data)
+
+    def validate_desconto_percentual(self, value):
+        # Aceita somente descontos maiores que 0% e menores que 100%.
+        if not 0 < value < 100:
+            raise serializers.ValidationError(
+                "Informe um percentual maior que zero e menor que 100."
+            )
+        return value
+
+    def get_situacao(self, obj):
+        # Usa o horário recebido no contexto ou o horário atual.
+        agora = self.context.get("agora") or timezone.now()
+
+        if agora < obj.data_inicio:
+            return "AGENDADA"
+
+        if agora < obj.data_fim:
+            return "VIGENTE"
+
+        return "ENCERRADA"
+
+    def create(self, validated_data):
+        # Cria a promoção usando a função de serviço.
+        promocao = salvar_promocao(
+            usuario=self.context["request"].user,
+            dados=validated_data,
+        )
+
+        # Carrega os itens e suas categorias para evitar consultas repetidas.
+        prefetch_related_objects(
+            [promocao],
+            "itens_promocao__item__categoria",
+        )
+
+        return promocao
+
+    def update(self, instance, validated_data):
+        # Atualiza a promoção identificada pelo ID da instância.
+        promocao = salvar_promocao(
+            usuario=self.context["request"].user,
+            dados=validated_data,
+            promocao_id=instance.pk,
+        )
+
+        # Carrega os itens e suas categorias para evitar consultas repetidas.
+        prefetch_related_objects(
+            [promocao],
+            "itens_promocao__item__categoria",
+        )
+
+        return promocao
 
 class PedidoSerializer(serializers.ModelSerializer):
     mesa = MesaSerializer(source='comanda.mesa', read_only=True)

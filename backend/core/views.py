@@ -19,6 +19,10 @@ from .serializers import (
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
     FiltroCardapioSerializer,ComandaConsultaSerializer)
+from .permissions import PermissoesPromocao
+from .services.promocoes import (
+    bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
+)
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -286,6 +290,25 @@ class CozinhaViewSet(viewsets.ModelViewSet):
     queryset = Cozinha.objects.all()
     serializer_class = CozinhaSerializer
 
+class PromocaoViewSet(viewsets.ModelViewSet):
+    # Consulta somente promoções não removidas e carrega seus itens e categorias.
+    queryset = Promocao.objects.filter(
+        removida_em__isnull=True,
+    ).prefetch_related("itens_promocao__item__categoria")
+
+    serializer_class = PromocaoSerializer
+    permission_classes = [PermissoesPromocao]
+
+    def get_serializer_context(self):
+        # Acrescenta o horário atual ao contexto padrão do serializer.
+        contexto = super().get_serializer_context()
+        contexto["agora"] = timezone.now()
+        return contexto
+
+    def perform_destroy(self, instance):
+        # Executa a remoção lógica por meio da função de serviço.
+        remover_promocao(promocao_id=instance.pk)
+
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemSerializer
@@ -327,6 +350,37 @@ class ItemViewSet(viewsets.ModelViewSet):
                 itens = itens.filter(disponivel=filtro.validated_data['disponivel'])
         return itens
 
+    def update(self, request, *args, **kwargs):
+        # Mantém as operações de banco dentro de uma mesma transação.
+        with transaction.atomic():
+            atual = self.get_object()
+
+            # Bloqueia o item para coordenar alterações concorrentes.
+            itens_bloqueados = bloquear_itens([atual.pk])
+            item = itens_bloqueados[atual.pk]
+
+            # Permite atualização parcial quando a requisição for PATCH.
+            parcial = kwargs.pop("partial", False)
+
+            serializer = self.get_serializer(
+                item,
+                data=request.data,
+                partial=parcial,
+            )
+            serializer.is_valid(raise_exception=True)
+
+            # Valida o novo preço normal quando ele estiver na atualização.
+            if "preco_unitario" in serializer.validated_data:
+                novo_preco = serializer.validated_data["preco_unitario"]
+
+                validar_alteracao_preco_normal(
+                    item=item,
+                    novo_preco=novo_preco,
+                )
+
+            # Salva as alterações e retorna os dados atualizados.
+            self.perform_update(serializer)
+            return Response(serializer.data)
 class ItensPedidoViewSet(viewsets.ModelViewSet):
     queryset = ItensPedido.objects.all()
     serializer_class = ItensPedidoSerializer
@@ -340,10 +394,6 @@ class ItensPedidoViewSet(viewsets.ModelViewSet):
 class ItensPromocaoViewSet(viewsets.ModelViewSet):
     queryset = ItensPromocao.objects.all()
     serializer_class = ItensPromocaoSerializer
-
-class PromocaoViewSet(viewsets.ModelViewSet):
-    queryset = Promocao.objects.all()
-    serializer_class = PromocaoSerializer
 
 class LogoutView(APIView):
     def post(self, request):
