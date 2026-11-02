@@ -5,7 +5,7 @@ import ModalProduto from "./ModalProduto";
 
 const intervaloAtualizacao = 500;
 
-export default function CardapioProdutos({ tipoCategoria, nomePagina }) {
+export default function CardapioProdutos({ tipoCategoria, nomePagina, onAdicionarItem, itemEmEdicao, onAtualizarItem, onCancelarEdicao, }) {
   const [produtos, setProdutos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -93,11 +93,16 @@ export default function CardapioProdutos({ tipoCategoria, nomePagina }) {
         !erro && <p>Nenhum item disponível em {nomePagina}.</p>
       )}
 
-      {produtoSelecionado && (
+      {(produtoSelecionado || itemEmEdicao) && (
         <ModalProduto
-          key={produtoSelecionado.id}
-          produto={produtoSelecionado}
-          onFechar={() => setProdutoSelecionado(null)}
+          key={itemEmEdicao?.idItemPedido ?? produtoSelecionado?.id}
+          produto={itemEmEdicao || produtoSelecionado}
+          itemEmEdicao={itemEmEdicao}
+          onFechar={() => {
+            setProdutoSelecionado(null);
+            onCancelarEdicao?.();
+          }}
+          onAdicionar={itemEmEdicao ? onAtualizarItem : onAdicionarItem}
         />
       )}
     </>

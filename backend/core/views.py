@@ -1,13 +1,14 @@
 from django.db import connection, transaction
+from django.db.models.deletion import ProtectedError
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
-
 from django.contrib.auth import authenticate, login, logout
-
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
+from django.utils import timezone
+from decimal import Decimal
 
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
@@ -52,7 +53,10 @@ class CategoriaViewSet(viewsets.ModelViewSet):
         if self.action != 'list':
             return categorias
 
+         # Pega os parâmetros da URL
         query_params = self.request.query_params
+        
+        # Só aplica o filtro se houver algum parâmetro na URL
         if query_params:
             filtro = FiltroCardapioSerializer(data=self.request.query_params)
             filtro.is_valid(raise_exception=True)
@@ -172,6 +176,120 @@ class ConsultarComandaView(APIView):
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+class EnviarPedidoView(APIView):
+    def post(self, request):
+        comanda_id = request.data.get("comanda_id")
+        itens = request.data.get("itens")
+
+        if not comanda_id:
+            return Response(
+                {"erro": "A identificação da comanda é obrigatória."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not isinstance(itens, list) or not itens:
+            return Response(
+                {"erro": "O pedido precisa conter pelo menos um item."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        with transaction.atomic():
+            try:
+                comanda = Comanda.objects.get(
+                    id=comanda_id,
+                    ativa=True
+                )
+            except Comanda.DoesNotExist:
+                return Response(
+                    {"erro": "Comanda não encontrada ou inativa."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            try:
+                cozinha_principal = Cozinha.objects.get(id=1)
+                cozinha_bar = Cozinha.objects.get(id=2)
+            except Cozinha.DoesNotExist:
+                return Response(
+                    {"erro": "As cozinhas necessárias não estão cadastradas."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            agora = timezone.now()
+            pedidos_criados = {}
+
+            for item_dados in itens:
+                item_id = item_dados.get("item_id")
+                quantidade = item_dados.get("quantidade")
+                if not item_id or isinstance(quantidade, bool) or not isinstance(quantidade, int) or quantidade < 1:
+                    return Response(
+                        {"erro": "Item ou quantidade inválida."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                try:
+                    item = Item.objects.select_related(
+                        "categoria"
+                    ).get(id=item_id, disponivel=True)
+                except Item.DoesNotExist:
+                    return Response(
+                        {"erro": f"Item {item_id} não encontrado ou indisponível."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                if item.categoria.tipo_categoria == Categoria.TipoCategoria.PRATO:
+                    cozinha = cozinha_principal
+                elif item.categoria.tipo_categoria == Categoria.TipoCategoria.BEBIDA:
+                    cozinha = cozinha_bar
+                else:
+                    return Response(
+                        {"erro": f"Categoria inválida para o item {item.nome}."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                if cozinha.id not in pedidos_criados:
+                    pedidos_criados[cozinha.id] = Pedido.objects.create(
+                        comanda=comanda,
+                        cozinha=cozinha
+                    )
+
+                # Consulta uma promoção vigente para o item.
+                promocao_item = (
+                    ItensPromocao.objects
+                    .filter(
+                        item=item,
+                        promocao__data_inicio__lte=agora,
+                        promocao__data_fim__gte=agora
+                    )
+                    .select_related("promocao")
+                    .order_by("-promocao__data_inicio")
+                    .first()
+                )
+                preco = item.preco_unitario
+
+                if promocao_item:
+                    desconto = Decimal(
+                        str(promocao_item.promocao.desconto_percentual)
+                    )
+                    preco = preco * (Decimal("1") - desconto / Decimal("100"))
+                ItensPedido.objects.create(
+                    pedido=pedidos_criados[cozinha.id],
+                    item=item,
+                    preco=preco,
+                    quantidade=quantidade,
+                    observacoes=item_dados.get("observacoes", "")
+                )
+        return Response(
+            {
+                "mensagem": "Pedido enviado para preparo com sucesso!",
+                "pedidos": [
+                    {
+                        "id": pedido.id,
+                        "cozinha": pedido.cozinha.nome
+                    }
+                    for pedido in pedidos_criados.values()
+                ]
+            },
+            status=status.HTTP_201_CREATED
+        )
+    
 class GerenteViewSet(viewsets.ModelViewSet):
     queryset = Gerente.objects.all()
     serializer_class = GerenteSerializer
@@ -195,23 +313,51 @@ class ItemViewSet(viewsets.ModelViewSet):
     permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
     
 
+    def perform_create(self, serializer):
+        serializer.save(gerente=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {
+                    'detail': (
+                        'Este produto possui vínculos que impedem sua exclusão. '
+                        'Você pode torná-lo indisponível para retirá-lo do cardápio.'
+                    ),
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+    
     def get_queryset(self):
         itens = super().get_queryset()
         if self.action != 'list':
             return itens
 
-        filtro = FiltroCardapioSerializer(data=self.request.query_params)
-        filtro.is_valid(raise_exception=True)
-        tipo = filtro.validated_data.get('tipo_categoria')
-        if tipo:
-            itens = itens.filter(categoria__tipo_categoria=tipo)
-        if 'disponivel' in filtro.validated_data:
-            itens = itens.filter(disponivel=filtro.validated_data['disponivel'])
+        # Pega os parâmetros da URL
+        query_params = self.request.query_params
+
+        # Só aplica o filtro se houver algum parâmetro na URL
+        if query_params:
+            filtro = FiltroCardapioSerializer(data=self.request.query_params)
+            filtro.is_valid(raise_exception=True)
+            tipo = filtro.validated_data.get('tipo_categoria')
+            if tipo:
+                itens = itens.filter(categoria__tipo_categoria=tipo)
+            if 'disponivel' in filtro.validated_data:
+                itens = itens.filter(disponivel=filtro.validated_data['disponivel'])
         return itens
 
 class ItensPedidoViewSet(viewsets.ModelViewSet):
     queryset = ItensPedido.objects.all()
     serializer_class = ItensPedidoSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            {"erro": "Não é permitido remover um item que já foi enviado para preparo."},
+            status=status.HTTP_403_FORBIDDEN
+        )
 
 class ItensPromocaoViewSet(viewsets.ModelViewSet):
     queryset = ItensPromocao.objects.all()

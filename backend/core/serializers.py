@@ -62,6 +62,24 @@ class ItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = Item
         fields = "__all__"
+        read_only_fields = ['gerente']
+
+    def validate_preco_unitario(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('O preço deve ser maior que zero.')
+        return value
+
+    def validate(self, attrs):
+        categoria = attrs.get('categoria', getattr(self.instance, 'categoria', None))
+        if categoria.tipo_categoria == Categoria.TipoCategoria.BEBIDA:
+            teor = attrs.get('teor_alcoolico', getattr(self.instance, 'teor_alcoolico', None))
+            if teor is None or not 0 <= teor <= 100:
+                raise serializers.ValidationError({
+                    'teor_alcoolico': 'Informe um teor alcoólico entre 0 e 100%. Use 0 para bebidas sem álcool.',
+                })
+        else:
+            attrs['teor_alcoolico'] = None
+        return attrs
 
 
 class ItensPedidoSerializer(serializers.ModelSerializer):
@@ -73,7 +91,7 @@ class ItensPedidoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ItensPedido
-        fields = ['id','item','item_id','pedido_id','preco','quantidade', 'status']
+        fields = ['id','item','item_id','pedido_id','preco','quantidade', 'observacoes', 'status']
 
 class ItensPromocaoSerializer(serializers.ModelSerializer):
     item = ItemSerializer(read_only=True)
