@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-// Função para capturar o token CSRF dos cookies do navegador (usada pois deu erro ver depois o padrão que é feito isso)
+// Função para capturar o token CSRF dos cookies do navegador 
 function getCookie(name) {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
@@ -42,7 +42,7 @@ export default function Categorias() {
 
   const buscarCategorias = async () => {
     try {
-      const resposta = await fetch("/api/categorias/");
+      const resposta = await fetch("/api/categorias/", {credentials: 'include'});
       if (!resposta.ok) throw new Error(`Erro do servidor (${resposta.status})`);
       const dados = await resposta.json();
       
@@ -125,7 +125,7 @@ export default function Categorias() {
       });
 
       if (!resposta.ok) {
-        // Se o banco de dados barrar a exclusão por ter produtos vinculados, ele costuma retornar 500, 409 ou 400
+        // Se o banco de dados barrar a exclusão por ter produtos vinculados
         if (resposta.status === 500 || resposta.status === 409 || resposta.status === 400) {
           throw new Error("Não é possível excluir esta categoria pois existem produtos vinculados a ela.");
         }

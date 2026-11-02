@@ -52,15 +52,17 @@ class CategoriaViewSet(viewsets.ModelViewSet):
         if self.action != 'list':
             return categorias
 
-        filtro = FiltroCardapioSerializer(data=self.request.query_params)
-        filtro.is_valid(raise_exception=True)
-        tipo = filtro.validated_data.get('tipo_categoria')
-        if tipo:
-            categorias = categorias.filter(tipo_categoria=tipo)
-        if 'disponivel' in filtro.validated_data:
-            categorias = categorias.filter(
-                itens__disponivel=filtro.validated_data['disponivel'],
-            ).distinct()
+        query_params = self.request.query_params
+        if query_params:
+            filtro = FiltroCardapioSerializer(data=self.request.query_params)
+            filtro.is_valid(raise_exception=True)
+            tipo = filtro.validated_data.get('tipo_categoria')
+            if tipo:
+                categorias = categorias.filter(tipo_categoria=tipo)
+            if 'disponivel' in filtro.validated_data:
+                categorias = categorias.filter(
+                    itens__disponivel=filtro.validated_data['disponivel'],
+                ).distinct()
         return categorias
 
     def destroy(self, request, *args, **kwargs):
@@ -76,6 +78,20 @@ class CategoriaViewSet(viewsets.ModelViewSet):
         # Permite exclusão de categoria
         self.perform_destroy(categoria)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+    def update(self, request, *args, **kwargs):
+        categoria = self.get_object()
+
+        novo_tipo = request.data.get('tipo_categoria')
+
+        if novo_tipo is not None and novo_tipo != categoria.tipo_categoria:
+            if categoria.itens.exists(): 
+                return Response(
+                    {"detail": "Não é possível alterar esta categoria porque existem produtos vinculados a ela"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return super().update(request, *args, **kwargs)
 
 class AbrirComandaView(APIView):
     def post(self, request, id_mesa):
