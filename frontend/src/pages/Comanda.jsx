@@ -2,7 +2,7 @@ import { useState } from "react";
 import formatarPreco from "../utils/formatarPreco";
 
 
-export default function Comanda({ itens = [] }) {
+export default function Comanda({ itens = [] ,mesa}) {
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
   const [fechamentoSolicitado, setFechamentoSolicitado] = useState(false);
   const [carregandoFechamento, setCarregandoFechamento] = useState(false);
@@ -65,6 +65,9 @@ export default function Comanda({ itens = [] }) {
         <h1 className="font-header text-2xl font-bold">
           Minha Comanda
         </h1>
+          <p className="mt-1 font-header text-lg font-bold text-[#996315]">
+            Mesa {mesa}
+          </p>
         <p className="mt-2 text-sm text-header/70">
           Confira os itens registrados na sua comanda.
         </p>

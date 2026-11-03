@@ -6,18 +6,24 @@ const estiloCampo = `rounded-lg border border-hover bg-fundo ${estiloFoco}`;
 const estiloBotao = `min-h-12 cursor-pointer rounded-lg px-4 ${estiloFoco}`;
 const estiloPreco = "text-xl font-bold text-[#996315]";
 
-export default function ModalProduto({ produto, onFechar }) {
+export default function ModalProduto({ produto, onFechar, onAdicionar,  itemEmEdicao = null }) {
   const modalRef = useRef(null);
   const modalId = useId();
   const tituloId = `${modalId}-titulo`;
   const quantidadeId = `${modalId}-quantidade`;
   const observacoesId = `${modalId}-observacoes`;
-  const [quantidade, setQuantidade] = useState(1);
+  const [quantidade, setQuantidade] = useState(itemEmEdicao?.quantidade ?? 1);
+  const [observacoes, setObservacoes] = useState(itemEmEdicao?.observacoes ?? "");
   const preco = Number(produto.preco_unitario);
   const quantidadeNumerica = Number(quantidade);
   const quantidadeValida = Number.isInteger(quantidadeNumerica) && quantidadeNumerica >= 1;
   const subtotal = preco * (quantidadeValida ? quantidadeNumerica : 0);
   const detalhe = produto.detalhe || (produto.volume_ml != null ? `${produto.volume_ml} ml` : "");
+
+  useEffect(() => {
+    setQuantidade(itemEmEdicao?.quantidade ?? 1);
+    setObservacoes(itemEmEdicao?.observacoes ?? "");
+  }, [itemEmEdicao]);
 
   useEffect(() => {
     const modal = modalRef.current;
@@ -95,6 +101,8 @@ export default function ModalProduto({ produto, onFechar }) {
               id={observacoesId}
               rows="2"
               placeholder="Ex.: sem cebola"
+              value={observacoes}
+              onChange={(evento) => setObservacoes(evento.target.value)}
               className={`${estiloCampo} w-full resize-none p-2`}
             />
           </div>
@@ -103,8 +111,21 @@ export default function ModalProduto({ produto, onFechar }) {
             <span>Subtotal</span>
             <span className={estiloPreco}>{formatarPreco(subtotal)}</span>
           </div>
-          <button type="button" className={`${estiloBotao} bg-hover py-3 font-bold hover:brightness-95`}>
-            Adicionar à comanda
+          <button
+            type="button"
+            disabled={!quantidadeValida}
+            onClick={() => {
+              onAdicionar({
+                ...produto,
+                quantidade: quantidadeNumerica,
+                observacoes: observacoes.trim(),
+              });
+
+              onFechar();
+            }}
+            className={`${estiloBotao} bg-hover py-3 font-bold hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            {itemEmEdicao ? "Atualizar item" : "Adicionar à comanda"}
           </button>
         </div>
       </div>

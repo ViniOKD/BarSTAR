@@ -13,6 +13,7 @@ import Categorias from "./pages/gerente/Categorias";
 import Produtos from "./pages/gerente/Produtos";
 import Promocoes from "./pages/gerente/Promocoes";
 import Comandas from "./pages/gerente/Comandas";
+import Pedidos from "./components/Pedidos";
 
 const telasGerente = {
   "/gerente": <PainelGerente />,
@@ -29,91 +30,126 @@ export default function App() {
   const [paginaAtual, setPaginaAtual] = useState(window.location.pathname);
   const [categoriaAtual, setCategoriaAtual] = useState("bebidas");
   const [itensComanda, setItensComanda] = useState([]);
+  const [pedidosAberto, setPedidosAberto] = useState(false);
+  const [itensPedido, setItensPedido] = useState([]);
+  const [itemEmEdicao, setItemEmEdicao] = useState(null);
+  const [enviandoPedido, setEnviandoPedido] = useState(false);
 
-  
-async function chamarGarcom() {
-  try {
-    const idComanda = localStorage.getItem("id_comanda");
+  function adicionarItemPedido(item) {
+    setItensPedido((itensAtuais) => [
+      ...itensAtuais,
+      {
+        ...item,
+        idItemPedido: crypto.randomUUID(),
+      },
+    ]);
+  }
 
-    if (!idComanda) {
-      alert("Não foi possível identificar a comanda.");
+  function atualizarItemPedido(itemAtualizado) {
+    setItensPedido((itensAtuais) =>
+      itensAtuais.map((item) =>
+        item.idItemPedido === itemAtualizado.idItemPedido
+          ? {
+              ...item,
+              quantidade: itemAtualizado.quantidade,
+              observacoes: itemAtualizado.observacoes,
+            }
+          : item
+      )
+    );
+
+    setItemEmEdicao(null);
+  }
+
+  function removerItemPedido(idItemPedido) {
+    setItensPedido((itensAtuais) =>
+      itensAtuais.filter(
+        (item) => item.idItemPedido !== idItemPedido
+      )
+    );
+  }
+
+  function editarItemPedido(item) {
+    setItemEmEdicao(item);
+    setCategoriaAtual(
+      item.categoria.tipo_categoria === "BEBIDA" ? "bebidas" : "comidas"
+    );
+    setPedidosAberto(false);
+  }
+
+  async function enviarPedido() {
+    if (itensPedido.length === 0 || enviandoPedido) return;
+    const idMesa = localStorage.getItem("id_mesa_tablet");
+
+    if (!idMesa) {
+      alert("Não foi possível identificar a mesa.");
       return;
     }
 
-    const resposta = await fetch("/api/solicitacoes/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        tipo: "ATENDIMENTO",
-        comanda: Number(idComanda),
-      }),
-    });
+    const dadosPedido = {
+      mesa_id: Number(idMesa),
+      itens: itensPedido.map((item) => ({
+        item_id: item.id,
+        quantidade: item.quantidade,
+        observacoes: item.observacoes || "",
+      })),
+    };
 
-    const dados = await resposta.json();
+    try {
+      setEnviandoPedido(true);
+      const resposta = await fetch("/api/enviar-pedido/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(dadosPedido),
+      });
 
-    if (!resposta.ok) {
-      throw new Error(
-        dados.erro ||
-        dados.detail ||
-        "Não foi possível chamar o garçom."
-      );
+      const dados = await resposta.json();
+      if (!resposta.ok) {
+        throw new Error(
+          dados.erro || "Não foi possível enviar o pedido."
+        );
+      }
+
+      setItensPedido([]);
+      setPedidosAberto(false);
+
+      alert("Pedido enviado para preparo!");
+    } catch (erro) {
+      console.error("Erro ao enviar pedido:", erro);
+      alert(erro.message);
+    } finally {
+      setEnviandoPedido(false);
     }
-
-    alert("Solicitação enviada! Aguarde o garçom.");
-  } catch (erro) {
-    alert(erro.message || "Erro ao conectar com o servidor.");
   }
-}
-
-
   // consulta a API, qunado a tela de comanda é aberta
   useEffect(() => {
     if (paginaAtual !== "/comanda") return;
 
-    const buscarComanda = async () => {
+    const buscarPedidos = async () => {
       try {
-        const idMesa = localStorage.getItem("id_mesa_tablet");
-
-        if (!idMesa) {
-          setItensComanda([]);
-          return;
-        }
-
-        const resposta = await fetch( 
-          `/api/mesas/${idMesa}/comanda/`
-        );
-
-        const dados = await resposta.json();
+        const resposta = await fetch("/api/pedidos/");
 
         if (!resposta.ok) {
-          throw new Error(
-            dados.erro || "Não foi possível consultar a comanda."
-          );
+          throw new Error("Não foi possível consultar os pedidos.");
         }
 
-        // Junta os itens de todos os pedidos da comanda.
-        const itens = (dados.pedidos ?? []).flatMap((pedido) =>
-          (pedido.itens ?? []).map((item) => ({
-            id: item.id,
-            item: { nome: item.nome },
-            preco: item.preco_unitario,
-            quantidade: item.quantidade,
-            status: item.status,
-          }))
-        );
+        const pedidos = await resposta.json();
+        const idComanda = localStorage.getItem('id_comanda');
+        const itens = pedidos
+          .filter((pedido) => Number(pedido.comanda) === Number(idComanda))
+          .flatMap((pedido) => pedido.itens_pedido ?? []);
 
         setItensComanda(itens);
       } catch (erro) {
-        console.error("Erro ao buscar a comanda:", erro);
-        setItensComanda([]);
+        console.error("Erro ao buscar os pedidos:", erro);
       }
     };
 
-    buscarComanda();
+    buscarPedidos();
 
-    const intervalo = setInterval(buscarComanda, 5000);
+    const intervalo = setInterval(buscarPedidos, 5000);
 
     return () => clearInterval(intervalo);
   }, [paginaAtual]);
@@ -153,10 +189,44 @@ async function chamarGarcom() {
         paginaAtual={paginaAtual}
         onNavegar={setPaginaAtual}
         onSelecionarCategoria={setCategoriaAtual}
-        onChamarGarcom={chamarGarcom}
       />
-
       <main className="ml-64 flex-1 p-6">
+
+        {paginaAtual === "/cardapio" && (
+          <div className="mb-6 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setPedidosAberto(true)}
+              aria-label="Abrir pedidos"
+              className="relative flex min-h-11 items-center gap-2 rounded-lg
+                        border border-hover bg-white px-4 py-2 font-bold
+                        text-header shadow-sm transition-colors
+                        hover:bg-destaque focus-visible:outline-2
+                        focus-visible:outline-offset-2 focus-visible:outline-hover"
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="size-6"
+              >
+                <path
+                  d="M6 7h15l-2 10H8L6 3H3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle cx="9" cy="21" r="1" />
+                <circle cx="18" cy="21" r="1" />
+              </svg>
+
+              <span>Pedidos</span>
+            </button>
+          </div>
+        )}
+
+        {/* Conteúdo do Cardápio */}
         {paginaAtual === "/cardapio" && (
           <>
             <h1 className="mb-6 font-header text-2xl font-bold text-header">
@@ -168,19 +238,47 @@ async function chamarGarcom() {
             </h1>
 
             {categoriaAtual === "bebidas" && (
-              <Bebidas />
+              <Bebidas
+                onAdicionarItem={adicionarItemPedido}
+                itemEmEdicao={itemEmEdicao?.categoria?.tipo_categoria === "BEBIDA" ? itemEmEdicao : null}
+                onAtualizarItem={atualizarItemPedido}
+                onCancelarEdicao={() => setItemEmEdicao(null)}
+              />
             )}
+
             {categoriaAtual === "comidas" && (
-              <Comidas />
+              <Comidas
+                onAdicionarItem={adicionarItemPedido}
+                itemEmEdicao={itemEmEdicao?.categoria?.tipo_categoria === "PRATO" ? itemEmEdicao : null}
+                onAtualizarItem={atualizarItemPedido}
+                onCancelarEdicao={() => setItemEmEdicao(null)}
+              />
             )}
           </>
         )}
 
         {paginaAtual === "/promocoes" && <h1>Promoções</h1>}
-        {paginaAtual === "/comanda" && <Comanda itens={itensComanda} />}
+
+        {paginaAtual === "/comanda" && (
+          <Comanda itens={itensComanda} mesa={localStorage.getItem("id_mesa_tablet")} />
+        )}
+
+        {/* Painel lateral de Pedidos */}
+        {paginaAtual === "/cardapio" && (
+          <Pedidos
+            aberto={pedidosAberto}
+            onFechar={() => setPedidosAberto(false)}
+            itens={itensPedido}
+            onRemoverItem={removerItemPedido}
+            onEditarItem={editarItemPedido}
+            onEnviar={enviarPedido}
+            enviando={enviandoPedido}
+          />
+        )}
+
       </main>
+
 
     </div>
   );
-
 }

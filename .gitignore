@@ -10,6 +10,7 @@ db.sqlite3
 # frontend
 node_modules/
 dist/
+docs/
 
 # arquivos
 *.jar

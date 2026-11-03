@@ -141,42 +141,6 @@ class Comanda(models.Model):
     def __str__(self):
         return f'Comanda #{self.id} -Mesa {self.mesa_id}'
 
-
-class Solicitacao(models.Model):
-    class TipoSolicitacao(models.TextChoices):
-        ATENDIMENTO = 'ATENDIMENTO', 'atendimento'
-        FECHAMENTO = 'FECHAMENTO', 'fechamento'
-
-    class StatusSolicitacao(models.TextChoices):
-        PENDENTE = 'PENDENTE', 'Pendente'
-        ATENDIDA = 'ATENDIDA', 'Atendida'
-        CANCELADA = 'CANCELADA', 'Cancelada'
-
-    id = models.BigAutoField(primary_key=True)
-    tipo = models.CharField(max_length=11,choices=TipoSolicitacao.choices,)
-    status = models.CharField(max_length=10,choices=StatusSolicitacao.choices,default=StatusSolicitacao.PENDENTE,)
-    data_solicitacao = models.DateTimeField(auto_now_add=True)
-    comanda = models.ForeignKey(
-        Comanda,
-        on_delete=models.PROTECT,
-        related_name='solicitacoes',
-        db_column='id_comanda',
-    )
-
-    class Meta:
-        db_table = 'solicitacao'
-        ordering = ['data_solicitacao']
-        indexes = [
-            models.Index(fields=['status', 'data_solicitacao']),
-            models.Index(fields=['comanda', 'status']), #precisa?
-        ]
-
-    def __str__(self):
-        return (
-            f'{self.get_tipo_display()} - ' 
-            f'Comanda {self.comanda_id} - {self.status}'
-        )
-
 class Pedido(models.Model):
     id = models.BigAutoField(primary_key=True)  # id_pedido
     concluido = models.BooleanField(default=False)
@@ -292,18 +256,21 @@ class Item(models.Model):
             return
 
         if categoria.tipo_categoria == Categoria.TipoCategoria.PRATO:
-            if self.peso is None:
-                raise ValidationError({'peso': 'Peso é obrigatório para pratos.'})
-            if self.tempo_preparo_minutos is None:
-                raise ValidationError({'tempo_preparo_minutos': 'Tempo de preparo é obrigatório para pratos.'})
+            if self.peso is None or self.peso < 1:
+                raise ValidationError({'peso': 'O peso é obrigatório para pratos e deve ser de no mínimo 1g.'})
+            if self.tempo_preparo_minutos is None or self.tempo_preparo_minutos < 1:
+                raise ValidationError({'tempo_preparo_minutos': 'O tempo de preparo é obrigatório e deve ser de no mínimo 1 minuto.'})
+            
             # Bebida fields devem ser None
             self.teor_alcoolico = None
             self.volume_ml = None
+
         elif categoria.tipo_categoria == Categoria.TipoCategoria.BEBIDA:
-            if self.teor_alcoolico is None:
-                raise ValidationError({'teor_alcoolico': 'Teor alcoólico é obrigatório para bebidas.'})
-            if self.volume_ml is None:
-                raise ValidationError({'volume_ml': 'Volume (ml) é obrigatório para bebidas.'})
+            if self.teor_alcoolico is None or not 0 <= self.teor_alcoolico <= 100:
+                raise ValidationError({'teor_alcoolico': 'Informe um teor alcoólico entre 0 e 100%. Use 0 para bebidas sem álcool.'})
+            if self.volume_ml is None or self.volume_ml < 1:
+                raise ValidationError({'volume_ml': 'O volume é obrigatório para bebidas e deve ser de no mínimo 1 ml.'})
+           
             # Prato fields devem ser None
             self.peso = None
             self.tempo_preparo_minutos = None
@@ -336,6 +303,7 @@ class ItensPedido(models.Model):
     )
     preco = models.DecimalField(max_digits=10, decimal_places=2)  # preço no momento do pedido
     quantidade = models.PositiveIntegerField()
+    observacoes = models.TextField(blank=True, default="")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.EM_PREPARO,)
 
     class Meta:
@@ -408,5 +376,3 @@ class ItensPromocao(models.Model):
 
     def __str__(self):
         return f'{self.item} na {self.promocao}'
-
-

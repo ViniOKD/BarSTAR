@@ -2,7 +2,7 @@ import re
 from rest_framework import serializers
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda,Solicitacao
+    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda
 )
 from decimal import Decimal
 import phonenumbers
@@ -56,6 +56,24 @@ class ItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = Item
         fields = "__all__"
+        read_only_fields = ['gerente']
+
+    def validate_preco_unitario(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('O preço deve ser maior que zero.')
+        return value
+
+    def validate(self, attrs):
+        categoria = attrs.get('categoria', getattr(self.instance, 'categoria', None))
+        if categoria.tipo_categoria == Categoria.TipoCategoria.BEBIDA:
+            teor = attrs.get('teor_alcoolico', getattr(self.instance, 'teor_alcoolico', None))
+            if teor is None or not 0 <= teor <= 100:
+                raise serializers.ValidationError({
+                    'teor_alcoolico': 'Informe um teor alcoólico entre 0 e 100%. Use 0 para bebidas sem álcool.',
+                })
+        else:
+            attrs['teor_alcoolico'] = None
+        return attrs
 
 
 class ItensPedidoSerializer(serializers.ModelSerializer):
@@ -67,7 +85,7 @@ class ItensPedidoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ItensPedido
-        fields = ['id','item','item_id','pedido_id','preco','quantidade', 'status']
+        fields = ['id','item','item_id','pedido_id','preco','quantidade', 'observacoes', 'status']
 
 class ItensPromocaoSerializer(serializers.ModelSerializer):
     item = ItemSerializer(read_only=True)
@@ -124,7 +142,7 @@ class AbrirComandaSerializer(serializers.Serializer):
         if len(tel_numeros) < 10:
             raise serializers.ValidationError("O número de telefone informado é inválido. Inclua o DDD.")
         return tel_numeros
-    
+
 class ItemComandaSerializer(serializers.ModelSerializer): #estrutura itens e calcula o subtotal
     nome = serializers.CharField(source="item.nome", read_only=True)
     preco_unitario = serializers.DecimalField(source="preco",max_digits=10,decimal_places=2,read_only=True,)
@@ -132,7 +150,7 @@ class ItemComandaSerializer(serializers.ModelSerializer): #estrutura itens e cal
 
     class Meta:
         model = ItensPedido
-        fields = ["id", "nome", "quantidade", "preco_unitario", "subtotal", "status"]
+        fields = ["id", "nome", "quantidade", "preco_unitario", "subtotal"]
 
     def get_subtotal(self, obj):
         return obj.preco * obj.quantidade
@@ -143,6 +161,19 @@ class PedidoComandaSerializer(serializers.ModelSerializer): #junta os itens de c
     class Meta:
         model = Pedido
         fields = ["id", "data_pedido", "concluido", "itens"]
+
+class ItemEnviarPedidoSerializer(serializers.Serializer):
+    item_id = serializers.IntegerField()
+    quantidade = serializers.IntegerField(min_value=1)
+    observacoes = serializers.CharField(
+        required=False,
+        allow_blank=True
+    )
+
+class EnviarPedidoSerializer(serializers.Serializer):
+    mesa_id = serializers.IntegerField()
+    itens = ItemEnviarPedidoSerializer(many=True)
+
 
 class ComandaConsultaSerializer(serializers.ModelSerializer):
     mesa = serializers.IntegerField(source="mesa_id", read_only=True)
@@ -167,27 +198,4 @@ class ComandaConsultaSerializer(serializers.ModelSerializer):
         if not phonenumbers.is_valid_number(parsed):
             raise serializers.ValidationError("O número de telefone informado é inválido.")
         return value
-    
 
-class SolicitacaoSerializer(serializers.ModelSerializer):
-    comanda = serializers.PrimaryKeyRelatedField(queryset=Comanda.objects.filter(ativa=True))
-    mesa = serializers.IntegerField(
-        source='comanda.mesa_id',
-        read_only=True,
-    )
-    class Meta:
-        model = Solicitacao
-        fields = [
-            'id',
-            'tipo',
-            'status',
-            'data_solicitacao',
-            'comanda',
-            'mesa',
-        ]
-        read_only_fields = [
-            'id',
-            'status',
-            'data_solicitacao',
-            'mesa',
-        ]
