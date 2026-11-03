@@ -42,6 +42,17 @@ class GarcomSerializer(serializers.ModelSerializer):
 
 class MesaSerializer(serializers.ModelSerializer):
     garcom = GarcomSerializer(read_only=True)
+    garcom_id = serializers.PrimaryKeyRelatedField(
+            queryset=Garcom.objects.all(),
+            source="garcom",
+            write_only=True,
+        )
+    gerente_id = serializers.PrimaryKeyRelatedField(
+            queryset=Gerente.objects.all(),
+            source="gerente",
+            write_only=True,
+        )
+    
     class Meta:
         model = Mesa
         fields = '__all__'

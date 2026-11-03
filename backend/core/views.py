@@ -118,14 +118,14 @@ class AbrirComandaView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-            if not mesa.ativo:
+            if mesa.status == Mesa.Status.INATIVA:
                 return Response(
-                    {'erro': 'Mesa não está ativa.'},
+                    {'erro': 'Mesa não está ativa e não pode receber novas comandas.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
             # Verifica se a mesa já possui comanda ativa
-            if Comanda.objects.filter(mesa=mesa, ativa=True).exists():
+            if mesa.status == Mesa.Status.OCUPADA:
                 return Response(
                     {"erro": "Esta mesa já possui uma comanda em andamento. Procure o garçom para fechar a comanda atual."},
                     status=status.HTTP_400_BAD_REQUEST
@@ -302,6 +302,28 @@ class MesaViewSet(viewsets.ModelViewSet):
     queryset = Mesa.objects.all()
     serializer_class = MesaSerializer
 
+    def destroy(self, request, *args, **kwargs):
+        mesa = self.get_object
+
+        if mesa.comandas.filter(ativa=True).exists():
+            return Response(
+                 {"erro": "Não é possivel excluir esta mesa pois ela possui uma comanda ativa em andamento."},
+                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return super().destroy(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        mesa = self.get_object()
+        novo_status = request.data.get('status')
+
+        if novo_status == Mesa.Status.INATIVA:
+            if mesa.comandas.filter(ativa=True).exists():
+                return Response(
+                    {"erro": "Não é possível inativa esta mesa pois ela possui uma comanda ativa."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return super().update(request, *args, **kwargs)
 
 class CozinhaViewSet(viewsets.ModelViewSet):
     queryset = Cozinha.objects.all()
