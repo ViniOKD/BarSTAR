@@ -78,9 +78,27 @@ class Garcom(models.Model):
 
 
 class Mesa(models.Model):
+    class Status(models.TextChoices):
+        LIVRE = 'LIVRE', 'Livre'
+        OCUPADA = 'OCUPADA', 'Ocupada'
+        RESERVADA = 'RESERVADA', 'Reservada'
+        INATIVA = 'INATIVA', 'Inativa'
+
     id = models.BigAutoField(primary_key=True)  # id_mesa
-    ativo = models.BooleanField(default=True)
     capacidade = models.PositiveIntegerField()
+    status = models.CharField(
+        max_length=15,
+        choices=Status.choices,
+        default=Status.LIVRE,
+    )
+    mesa_agrupada = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='mesas_agrupadas',
+        db_column='id_mesa_agrupada',
+    )
     gerente = models.ForeignKey(
         Gerente,
         on_delete=models.PROTECT,
@@ -98,12 +116,12 @@ class Mesa(models.Model):
         db_table = 'mesa'
         ordering = ['id']
         indexes = [
-            models.Index(fields=['gerente', 'ativo']),
-            models.Index(fields=['garcom', 'ativo']),
+            models.Index(fields=['gerente', 'status']),
+            models.Index(fields=['garcom', 'status']),
         ]
 
     def __str__(self):
-        return f'Mesa {self.id} ({self.capacidade} lugares)'
+        return f'Mesa {self.id} ({self.capacidade} lugares - {self.get_status_display()})'
 
 
 class Cozinha(models.Model):
