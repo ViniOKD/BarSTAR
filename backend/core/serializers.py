@@ -9,7 +9,7 @@ import phonenumbers
 from django.db.models import prefetch_related_objects
 from django.utils import timezone
 from .services.promocoes import salvar_promocao
-
+from .services.dar_preco import obter_precos_atuais
 # Os serializers convertem dados do banco de dados para formato JSON
 
 
@@ -78,17 +78,68 @@ class ItemSerializer(serializers.ModelSerializer):
             attrs['teor_alcoolico'] = None
         return attrs
 
+class ItemCardapioSerializer(ItemSerializer):
+    preco_atual = serializers.SerializerMethodField()
+    promocao_atual = serializers.SerializerMethodField()
+
+    def _preco(self, obj):
+        # criação de um dicionário de preços se ainda não existir no contexto.
+        if "precos_atuais" not in self.context:
+            self.context["precos_atuais"] = {}
+
+        precos = self.context["precos_atuais"]
+
+        # consulta o preço somente se ele ainda não estiver no dicionário.
+        if obj.pk not in precos:
+            precos.update(obter_precos_atuais([obj]))
+
+        return precos[obj.pk]
+
+    def get_preco_atual(self, obj):
+        return self._preco(obj)["preco_atual"]
+
+    def get_promocao_atual(self, obj):
+        promocao = self._preco(obj)["promocao"]
+
+        if promocao is None:
+            return None
+
+        return {
+            "id": promocao.pk,
+            "nome": promocao.nome,
+            "desconto_percentual": promocao.desconto_percentual,
+            "data_fim": promocao.data_fim.isoformat(),
+        }
 
 class ItensPedidoSerializer(serializers.ModelSerializer):
     item = ItemSerializer(read_only=True)
-    #associa item ao pedido
-    item_id = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all(),source='item',write_only=True)
-
-    pedido_id = serializers.PrimaryKeyRelatedField(queryset=Pedido.objects.all(),source='pedido',write_only=True)
+    item_id = serializers.IntegerField(read_only=True)
+    pedido_id = serializers.IntegerField(read_only=True)
+    nome = serializers.SerializerMethodField()
+    desconto_unitario = serializers.SerializerMethodField()
 
     class Meta:
         model = ItensPedido
-        fields = ['id','item','item_id','pedido_id','preco','quantidade', 'observacoes', 'status']
+        fields = [
+            "id", "item", "item_id", "pedido_id", "nome", "preco", "preco_original",
+            "desconto_unitario", "promocao_aplicada", "nome_promocao_registrada",
+            "quantidade", "observacoes", "status",
+        ]
+        read_only_fields = [campo for campo in fields if campo != "status"]
+
+    def get_nome(self, obj):
+        return obj.nome_item_registrado or obj.item.nome
+
+    def get_desconto_unitario(self, obj):
+        if obj.preco_original is None:
+            return None
+        return f"{obj.preco_original - obj.preco:.2f}"
+
+    def validate(self, attrs):
+        if set(self.initial_data) != {"status"}:
+            raise serializers.ValidationError({"erro": "Envie somente o status do item."})
+        return attrs
+
 
 class ItensPromocaoSerializer(serializers.ModelSerializer):
     item = ItemSerializer(read_only=True)
@@ -202,11 +253,32 @@ class PromocaoSerializer(serializers.ModelSerializer):
 class PedidoSerializer(serializers.ModelSerializer):
     mesa = MesaSerializer(source='comanda.mesa', read_only=True)
     cozinha = CozinhaSerializer(read_only=True)
-    cozinha_id = serializers.PrimaryKeyRelatedField(queryset=Cozinha.objects.all(),source='cozinha',write_only=True) #associa uma cozinha ao pedido
     itens_pedido = ItensPedidoSerializer(many=True,read_only=True)
     class Meta:
         model = Pedido
         fields = '__all__'
+        read_only_fields = ["id", "data_pedido", "comanda"]
+
+    def validate(self, attrs):
+        if set(self.initial_data) != {"concluido"}:
+            raise serializers.ValidationError({"erro": "Envie somente a conclusão do pedido."})
+        return attrs
+
+# valida cada item enviado no pedido
+class LinhaPedidoSerializer(serializers.Serializer):
+    item_id = serializers.IntegerField(min_value=1)
+    quantidade = serializers.IntegerField(min_value=1)
+    preco_esperado = serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal("0.01"),
+    )
+    observacoes = serializers.CharField(
+        allow_blank=True, default="", trim_whitespace=False,
+    )
+
+# valida a entrada do envio de pedido: comanda e lista não vazia de itens
+class EnviarPedidoSerializer(serializers.Serializer):
+    comanda_id = serializers.IntegerField(min_value=1)
+    itens = LinhaPedidoSerializer(many=True, allow_empty=False)
 
 class AbrirComandaSerializer(serializers.Serializer):
     cpf = serializers.CharField(max_length=14)
@@ -243,18 +315,32 @@ class AbrirComandaSerializer(serializers.Serializer):
             raise serializers.ValidationError("O número de telefone informado é inválido. Inclua o DDD.")
         return tel_numeros
 
-class ItemComandaSerializer(serializers.ModelSerializer): #estrutura itens e calcula o subtotal
-    nome = serializers.CharField(source="item.nome", read_only=True)
-    preco_unitario = serializers.DecimalField(source="preco",max_digits=10,decimal_places=2,read_only=True,)
+class ItemComandaSerializer(serializers.ModelSerializer):
+    nome = serializers.SerializerMethodField()
+    preco_unitario = serializers.DecimalField(
+        source="preco", max_digits=10, decimal_places=2, read_only=True,
+    )
+    desconto_unitario = serializers.SerializerMethodField()
     subtotal = serializers.SerializerMethodField()
 
     class Meta:
         model = ItensPedido
-        fields = ["id", "nome", "quantidade", "preco_unitario", "subtotal"]
+        fields = [
+            "id", "nome", "quantidade", "preco_unitario", "preco_original",
+            "desconto_unitario", "promocao_aplicada", "nome_promocao_registrada", "subtotal",
+        ]
+        read_only_fields = fields
+
+    def get_nome(self, obj):
+        return obj.nome_item_registrado or obj.item.nome
+
+    def get_desconto_unitario(self, obj):
+        if obj.preco_original is None:
+            return None
+        return f"{obj.preco_original - obj.preco:.2f}"
 
     def get_subtotal(self, obj):
-        return obj.preco * obj.quantidade
-
+        return f"{obj.preco * obj.quantidade:.2f}"
 
 class PedidoComandaSerializer(serializers.ModelSerializer): #junta os itens de cada pedido
     itens = ItemComandaSerializer(source="itens_pedido",many=True,read_only=True,)
@@ -278,7 +364,7 @@ class ComandaConsultaSerializer(serializers.ModelSerializer):
             for item_pedido in pedido.itens_pedido.all():
                 total += item_pedido.preco * item_pedido.quantidade
 
-        return total
+        return f"{total:.2f}"
         try:
             parsed = phonenumbers.parse(value, 'BR')
         except phonenumbers.NumberParseException:

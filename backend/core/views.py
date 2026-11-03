@@ -3,7 +3,7 @@ from django.db.models.deletion import ProtectedError
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.contrib.auth import authenticate, login, logout
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, mixins, viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
@@ -18,11 +18,13 @@ from .serializers import (
     PedidoSerializer, CategoriaSerializer, GerenteSerializer, GarcomSerializer,
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
-    FiltroCardapioSerializer,ComandaConsultaSerializer)
+    FiltroCardapioSerializer,ComandaConsultaSerializer, ItemCardapioSerializer, EnviarPedidoSerializer)
 from .permissions import PermissoesPromocao
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
 )
+from .services.dar_preco import obter_precos_atuais
+from .services.pedidos import enviar_pedido
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -42,9 +44,24 @@ def health(request):
         "message": "React, Django e MySQL conectados",
     })
 
-class PedidoViewSet(viewsets.ModelViewSet):
-    queryset = Pedido.objects.select_related('comanda__mesa', 'cozinha')
-    serializer_class = PedidoSerializer 
+class PedidoViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
+                    mixins.UpdateModelMixin, viewsets.GenericViewSet):
+    
+    queryset = Pedido.objects.select_related(
+        "comanda__mesa__garcom__gerente", "cozinha",
+    ).prefetch_related("itens_pedido__item__categoria")
+    serializer_class = PedidoSerializer
+    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    http_method_names = ["get", "patch", "head", "options"]
+
+
+class ItensPedidoViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
+                        mixins.UpdateModelMixin, viewsets.GenericViewSet):
+    
+    queryset = ItensPedido.objects.select_related("item__categoria", "pedido")
+    serializer_class = ItensPedidoSerializer
+    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    http_method_names = ["get", "patch", "head", "options"]
 
 class CategoriaViewSet(viewsets.ModelViewSet):
     queryset = Categoria.objects.all()
@@ -61,7 +78,7 @@ class CategoriaViewSet(viewsets.ModelViewSet):
         
         # Só aplica o filtro se houver algum parâmetro na URL
         if query_params:
-            filtro = FiltroCardapioSerializer(data=self.request.query_params)
+            filtro = FiltroCardapioSerializer(data=query_params.dict())
             filtro.is_valid(raise_exception=True)
             tipo = filtro.validated_data.get('tipo_categoria')
             if tipo:
@@ -153,125 +170,23 @@ class ConsultarComandaView(APIView):
 
 class EnviarPedidoView(APIView):
     def post(self, request):
-        comanda_id = request.data.get("comanda_id")
-        itens = request.data.get("itens")
+        serializer = EnviarPedidoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        if not comanda_id:
-            return Response(
-                {"erro": "A identificação da comanda é obrigatória."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        pedidos = enviar_pedido(**serializer.validated_data)
 
-        if not isinstance(itens, list) or not itens:
-            return Response(
-                {"erro": "O pedido precisa conter pelo menos um item."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # monta a lista dos pedidos criados e suas cozinhas.
+        dados_pedidos = []
+        for pedido in pedidos:
+            dados_pedidos.append({
+                "id": pedido.pk,
+                "cozinha": pedido.cozinha.nome,
+            })
 
-        with transaction.atomic():
-            try:
-                comanda = Comanda.objects.get(
-                    id=comanda_id,
-                    ativa=True
-                )
-            except Comanda.DoesNotExist:
-                return Response(
-                    {"erro": "Comanda não encontrada ou inativa."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            try:
-                cozinha_principal = Cozinha.objects.get(id=1)
-                cozinha_bar = Cozinha.objects.get(id=2)
-            except Cozinha.DoesNotExist:
-                return Response(
-                    {"erro": "As cozinhas necessárias não estão cadastradas."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            agora = timezone.now()
-            pedidos_criados = {}
-
-            for item_dados in itens:
-                item_id = item_dados.get("item_id")
-                quantidade = item_dados.get("quantidade")
-                if not item_id or isinstance(quantidade, bool) or not isinstance(quantidade, int) or quantidade < 1:
-                    return Response(
-                        {"erro": "Item ou quantidade inválida."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-
-                try:
-                    item = Item.objects.select_related(
-                        "categoria"
-                    ).get(id=item_id, disponivel=True)
-                except Item.DoesNotExist:
-                    return Response(
-                        {"erro": f"Item {item_id} não encontrado ou indisponível."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-
-                if item.categoria.tipo_categoria == Categoria.TipoCategoria.PRATO:
-                    cozinha = cozinha_principal
-                elif item.categoria.tipo_categoria == Categoria.TipoCategoria.BEBIDA:
-                    cozinha = cozinha_bar
-                else:
-                    return Response(
-                        {"erro": f"Categoria inválida para o item {item.nome}."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                if cozinha.id not in pedidos_criados:
-                    pedidos_criados[cozinha.id] = Pedido.objects.create(
-                        comanda=comanda,
-                        cozinha=cozinha
-                    )
-
-                # Consulta uma promoção vigente para o item.
-                promocao_item = (
-                    ItensPromocao.objects
-                    .filter(
-                        item=item,
-                        promocao__removida_em__isnull=True,
-                        promocao__data_inicio__lte=agora,
-                        promocao__data_fim__gt=agora
-                    )
-                    .select_related("promocao")
-                    .order_by("-promocao__data_inicio")
-                    .first()
-                )
-                preco = item.preco_unitario
-
-                if promocao_item:
-                    try:
-                        preco = calcular_preco_final(
-                            item.preco_unitario,
-                            promocao_item.promocao.desconto_percentual,
-                        )
-                    except ValueError as erro:
-                        raise ValidationError({"erro": str(erro)})
-                ItensPedido.objects.create(
-                    pedido=pedidos_criados[cozinha.id],
-                    item=item,
-                    preco=preco,
-                    preco_original=item.preco_unitario,
-                    nome_item_registrado=item.nome,
-                    promocao_aplicada=promocao_item.promocao if promocao_item else None,
-                    nome_promocao_registrada=promocao_item.promocao.nome if promocao_item else "",
-                    quantidade=quantidade,
-                    observacoes=item_dados.get("observacoes", "")
-                )
-        return Response(
-            {
-                "mensagem": "Pedido enviado para preparo com sucesso!",
-                "pedidos": [
-                    {
-                        "id": pedido.id,
-                        "cozinha": pedido.cozinha.nome
-                    }
-                    for pedido in pedidos_criados.values()
-                ]
-            },
-            status=status.HTTP_201_CREATED
-        )
+        return Response({
+            "mensagem": "Pedido enviado para preparo com sucesso!",
+            "pedidos": dados_pedidos},
+            status=status.HTTP_201_CREATED)
     
 class GerenteViewSet(viewsets.ModelViewSet):
     queryset = Gerente.objects.all()
@@ -311,7 +226,7 @@ class PromocaoViewSet(viewsets.ModelViewSet):
 
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
-    serializer_class = ItemSerializer
+    serializer_class = ItemCardapioSerializer
     permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
 
     def perform_create(self, serializer):
@@ -341,7 +256,7 @@ class ItemViewSet(viewsets.ModelViewSet):
 
         # Só aplica o filtro se houver algum parâmetro na URL
         if query_params:
-            filtro = FiltroCardapioSerializer(data=self.request.query_params)
+            filtro = FiltroCardapioSerializer(data=query_params.dict())
             filtro.is_valid(raise_exception=True)
             tipo = filtro.validated_data.get('tipo_categoria')
             if tipo:
@@ -381,16 +296,30 @@ class ItemViewSet(viewsets.ModelViewSet):
             # Salva as alterações e retorna os dados atualizados.
             self.perform_update(serializer)
             return Response(serializer.data)
-class ItensPedidoViewSet(viewsets.ModelViewSet):
-    queryset = ItensPedido.objects.all()
-    serializer_class = ItensPedidoSerializer
 
-    def destroy(self, request, *args, **kwargs):
-        return Response(
-            {"erro": "Não é permitido remover um item que já foi enviado para preparo."},
-            status=status.HTTP_403_FORBIDDEN
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # Se a paginação estiver habilitada, obtém os itens da página.
+        pagina = self.paginate_queryset(queryset)
+        if pagina is not None:
+            itens = list(pagina)
+        else:
+            itens = list(queryset)
+
+        contexto = self.get_serializer_context()
+        contexto["precos_atuais"] = obter_precos_atuais(itens)
+
+        serializer = self.get_serializer(
+            itens,
+            many=True,
+            context=contexto,
         )
+        if pagina is not None:
+            return self.get_paginated_response(serializer.data)
 
+        return Response(serializer.data)
+        
 class ItensPromocaoViewSet(viewsets.ModelViewSet):
     queryset = ItensPromocao.objects.all()
     serializer_class = ItensPromocaoSerializer
