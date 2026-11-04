@@ -5,7 +5,6 @@ from .models import (
     Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda
 )
 from decimal import Decimal
-import phonenumbers
 from django.db.models import prefetch_related_objects
 from django.utils import timezone
 from .services.promocoes import salvar_promocao
@@ -266,8 +265,8 @@ class PedidoSerializer(serializers.ModelSerializer):
 
 # valida cada item enviado no pedido
 class LinhaPedidoSerializer(serializers.Serializer):
-    item_id = serializers.IntegerField(min_value=1)
-    quantidade = serializers.IntegerField(min_value=1)
+    item_id = serializers.IntegerField(min_value=1, max_value=2**63 - 1)
+    quantidade = serializers.IntegerField(min_value=1, max_value=2**31 - 1)
     preco_esperado = serializers.DecimalField(
         max_digits=10, decimal_places=2, min_value=Decimal("0.01"),
     )
@@ -277,7 +276,7 @@ class LinhaPedidoSerializer(serializers.Serializer):
 
 # valida a entrada do envio de pedido: comanda e lista não vazia de itens
 class EnviarPedidoSerializer(serializers.Serializer):
-    comanda_id = serializers.IntegerField(min_value=1)
+    comanda_id = serializers.IntegerField(min_value=1, max_value=2**63 - 1)
     itens = LinhaPedidoSerializer(many=True, allow_empty=False)
 
 class AbrirComandaSerializer(serializers.Serializer):
@@ -365,10 +364,3 @@ class ComandaConsultaSerializer(serializers.ModelSerializer):
                 total += item_pedido.preco * item_pedido.quantidade
 
         return f"{total:.2f}"
-        try:
-            parsed = phonenumbers.parse(value, 'BR')
-        except phonenumbers.NumberParseException:
-            raise serializers.ValidationError("O número de telefone informado é inválido.")
-        if not phonenumbers.is_valid_number(parsed):
-            raise serializers.ValidationError("O número de telefone informado é inválido.")
-        return value
