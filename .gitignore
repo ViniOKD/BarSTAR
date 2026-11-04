@@ -11,6 +11,7 @@ db.sqlite3
 node_modules/
 dist/
 docs/
+tests/
 
 # arquivos
 *.jar

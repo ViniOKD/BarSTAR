@@ -13,7 +13,7 @@ export function FormAberturaComanda({ aoSucesso }) {
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
   const [segundos, setSegundos] = useState(5);
   // Estado para armazenar o número da mesa do tablet
-  const [idMesa, setIdMesa] = useState(() => {
+  const [idMesa] = useState(() => {
     const parametrosUrl = new URLSearchParams(window.location.search);
     return parametrosUrl.get('mesa') || localStorage.getItem('id_mesa_tablet') || null;
   });
@@ -39,7 +39,6 @@ export function FormAberturaComanda({ aoSucesso }) {
     if (mesaUrl) {
       // Se obteve identificação, o tablet sabe sempre a qual mesa pertence mesmo que reiniciado
       localStorage.setItem('id_mesa_tablet', mesaUrl);
-      setIdMesa(mesaUrl);
       // Limpa a URL para o cliente não ver o parâmetro
       window.history.replaceState(null, '', window.location.pathname);
     }
@@ -50,7 +49,6 @@ export function FormAberturaComanda({ aoSucesso }) {
     if (!mostrarConfirmacao) return;
 
     if (segundos <= 0) {
-      setMostrarConfirmacao(false);
       if (aoSucesso) aoSucesso();
       window.location.href = '/cardapio';
       return;

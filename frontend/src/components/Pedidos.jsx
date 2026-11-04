@@ -1,40 +1,45 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import formatarPreco from "../utils/formatarPreco";
+import { deCentavos, paraCentavos } from "../utils/valores";
 
-export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, onEditarItem, onEnviar, enviando = false,}) {
+export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, onEditarItem, onEnviar,
+  enviando = false, atualizando = false, erro = "", aviso = "", onAtualizar }) {
+  const dialogoRef = useRef(null);
+  const ocupado = atualizando || enviando;
+  const indisponivel = itens.some((item) => item.disponivel === false);
+  const total = itens.reduce((soma, item) => soma + BigInt(paraCentavos(item.preco_atual)) * BigInt(item.quantidade), 0n);
+
   useEffect(() => {
     if (!aberto) return;
-
-    function fecharComEsc(evento) {
-      if (evento.key === "Escape") {
-        onFechar();
-      }
-    }
-
-    window.addEventListener("keydown", fecharComEsc);
+    const dialogo = dialogoRef.current;
+    const overflowAnterior = document.body.style.overflow;
+    dialogo.showModal();
+    document.body.style.overflow = "hidden";
 
     return () => {
-      window.removeEventListener("keydown", fecharComEsc);
+      dialogo.close();
+      document.body.style.overflow = overflowAnterior;
     };
-  }, [aberto, onFechar]);
+  }, [aberto]);
 
   if (!aberto) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50"
+    <dialog
+      ref={dialogoRef}
+      aria-labelledby="titulo-pedidos"
+      className="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none border-0 bg-transparent p-0 backdrop:bg-black/30"
+      onCancel={(evento) => {
+        evento.preventDefault();
+        onFechar();
+      }}
       onMouseDown={(evento) => {
         if (evento.target === evento.currentTarget) {
           onFechar();
         }
       }}
     >
-      <div className="absolute inset-0 bg-black/30" />
-
       <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="titulo-pedidos"
         className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col
                    border-l border-hover bg-[#F4F0E5] p-6 text-header
                    shadow-2xl"
@@ -78,7 +83,21 @@ export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, o
           </button>
         </header>
 
-        <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
+        {atualizando && <p role="status" className="mb-3 text-sm">Atualizando preços...</p>}
+        {aviso && <p role="status" className="mb-3 text-sm">{aviso}</p>}
+        {erro && <p role="alert" className="mb-3 text-sm text-red-700">{erro}</p>}
+        {onAtualizar && (
+          <button
+            type="button"
+            onClick={onAtualizar}
+            disabled={ocupado}
+            className="mb-3 min-h-11 rounded-lg border border-hover px-3 text-sm font-semibold hover:bg-header/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hover disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {erro ? "Tentar novamente" : "Atualizar preços"}
+          </button>
+        )}
+
+        <div aria-busy={ocupado} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
           {itens.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center
                             rounded-xl border border-dashed border-hover/60
@@ -119,14 +138,25 @@ export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, o
                     <h3 className="font-bold">{item.nome}</h3>
 
                     <p className="mt-1 text-sm text-header/70">
-                      {formatarPreco(Number(item.preco_unitario))} cada
+                      {formatarPreco(item.preco_atual)} cada
                     </p>
+                    {item.promocao_atual && paraCentavos(item.preco_atual) < paraCentavos(item.preco_unitario) && (
+                      <>
+                        <p className="text-sm text-header/70">
+                          <span className="sr-only">Preço normal: </span><s>{formatarPreco(item.preco_unitario)}</s>
+                        </p>
+                        <p className="text-sm text-header/70">
+                          {item.promocao_atual.desconto_percentual}% de desconto · {item.promocao_atual.nome}
+                        </p>
+                      </>
+                    )}
+                    {item.disponivel === false && <p className="mt-1 text-sm font-semibold text-red-700">Produto indisponível</p>}
                   </div>
 
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <span className="font-bold text-[#996315]">
                       {formatarPreco(
-                        Number(item.preco_unitario) * item.quantidade
+                        deCentavos(BigInt(paraCentavos(item.preco_atual)) * BigInt(item.quantidade))
                       )}
                     </span>
 
@@ -135,10 +165,11 @@ export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, o
                       <button
                         type="button"
                         onClick={() => onEditarItem(item)}
+                        disabled={ocupado || item.disponivel === false}
                         aria-label={`Editar ${item.nome}`}
                         title="Editar item"
                         className="rounded-md p-2 text-green-600 transition-colors
-                                  hover:bg-green-50 hover:text-green-700"
+                                  hover:bg-green-50 hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <svg
                           aria-hidden="true"
@@ -160,10 +191,11 @@ export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, o
                       <button
                         type="button"
                         onClick={() => onRemoverItem(item.idItemPedido)}
+                        disabled={ocupado}
                         aria-label={`Remover ${item.nome}`}
                         title="Remover item"
                         className="rounded-md p-2 text-red-600 transition-colors
-                                  hover:bg-red-50 hover:text-red-700"
+                                  hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <svg
                           aria-hidden="true"
@@ -205,20 +237,14 @@ export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, o
           <div className="mb-4 flex items-center justify-between">
             <span className="font-medium">Total parcial</span>
             <span className="text-xl font-bold text-[#996315]">
-              {formatarPreco(
-                itens.reduce(
-                  (total, item) =>
-                    total + Number(item.preco_unitario) * item.quantidade,
-                  0
-                )
-              )}
+              {formatarPreco(deCentavos(total))}
             </span>
           </div>
 
           <button
             type="button"
             onClick={onEnviar}
-            disabled={itens.length === 0 || enviando}
+            disabled={itens.length === 0 || ocupado || Boolean(erro) || indisponivel}
             className="min-h-12 w-full rounded-lg bg-[#996315] px-4 py-3
                       font-bold text-white transition-colors
                       hover:bg-[#80520f] disabled:cursor-not-allowed
@@ -228,6 +254,6 @@ export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, o
           </button>
         </footer>
       </section>
-    </div>
+    </dialog>
   );
 }

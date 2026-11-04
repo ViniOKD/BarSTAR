@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 // Função nativa para capturar o token CSRF dos cookies do navegador
 function getCookie(name) {
@@ -42,13 +42,11 @@ export default function Produtos() {
   };
   const [formData, setFormData] = useState(estadoInicial);
 
-  const buscarDados = async () => {
-    try {
-      setErroApi(null);
-      const [respostaProdutos, respostaCategorias] = await Promise.all([
+  const buscarDados = useCallback(() => Promise.all([
         fetch("/api/itens/"),
         fetch("/api/categorias/")
-      ]);
+      ]).then(async ([respostaProdutos, respostaCategorias]) => {
+      setErroApi(null);
 
       if (respostaProdutos.ok && respostaCategorias.ok) {
         const dadosProd = await respostaProdutos.json();
@@ -62,16 +60,15 @@ export default function Produtos() {
 
         setErroApi(`Erro no servidor ao carregar: ${erros.join(" e ")}.`);
       }
-    } catch (erro) {
+    }).catch(() => {
       setErroApi("Erro de Conexão. O React não conseguiu alcançar o Django.");
-    } finally {
+    }).finally(() => {
       setCarregando(false);
-    }
-  };
+    }), []);
 
   useEffect(() => {
     buscarDados();
-  }, []);
+  }, [buscarDados]);
 
   const mostrarSucesso = (mensagem) => {
     setMensagemSucesso(mensagem);
