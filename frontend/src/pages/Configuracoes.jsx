@@ -40,6 +40,13 @@ export default function Configuracoes() {
         return;
       }
 
+       // Salvando o ID do gerente no navegador
+      const dados = await resposta.json();
+
+      if (dados.gerente && dados.gerente.id) {
+        localStorage.setItem("gerente_id", dados.gerente.id);
+      }
+
       window.location.href = "/gerente";
     } catch {
       setErro("Não foi possível conectar ao servidor. Verifique a conexão.");

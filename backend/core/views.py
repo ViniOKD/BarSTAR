@@ -303,7 +303,7 @@ class MesaViewSet(viewsets.ModelViewSet):
     serializer_class = MesaSerializer
 
     def destroy(self, request, *args, **kwargs):
-        mesa = self.get_object
+        mesa = self.get_object()
 
         if mesa.comandas.filter(ativa=True).exists():
             return Response(

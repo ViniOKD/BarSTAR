@@ -56,6 +56,7 @@ class MesaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mesa
         fields = '__all__'
+        read_only_fields = ['gerente', 'gerente_id']
 
 class CozinhaSerializer(serializers.ModelSerializer):
     class Meta:
