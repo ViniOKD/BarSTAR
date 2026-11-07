@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import seta from "../../assets/setadourada.png";
 
@@ -8,7 +7,7 @@ export default function SolicitacoesGarcom() {
   const [carregandoId, setCarregandoId] = useState(null);
   const [erro, setErro] = useState("");
 
-  // Estados dos filtros
+  // Filtros
   const [mesaSelecionada, setMesaSelecionada] = useState("TODAS");
   const [statusSelecionado, setStatusSelecionado] = useState("TODOS");
 
@@ -52,7 +51,6 @@ export default function SolicitacoesGarcom() {
           throw new Error("O servidor retornou uma resposta vazia.");
         }
 
-        // Aceita lista simples ou resposta paginada do Django REST Framework
         const lista = Array.isArray(dados)
           ? dados
           : dados.results || [];
@@ -70,7 +68,7 @@ export default function SolicitacoesGarcom() {
     buscarSolicitacoes();
   }, []);
 
-  // Define o texto e as cores de cada status
+  //Define texto e cores de cada status
   const obterEstiloStatus = (status) => {
     switch (status) {
       case "PENDENTE":
@@ -99,7 +97,7 @@ export default function SolicitacoesGarcom() {
     }
   };
 
-  // Converte o tipo recebido da API para um texto mais amigável
+  // Converte o tipo recebido da API
   const obterTipoSolicitacao = (tipo) => {
     switch (tipo) {
       case "ATENDIMENTO":
@@ -113,32 +111,17 @@ export default function SolicitacoesGarcom() {
     }
   };
 
-  // Obtém os dados da mesa
-  const obterDadosMesa = (solicitacao) => {
-    const mesa = solicitacao.mesa ?? solicitacao.comanda?.mesa;
-
-    if (mesa && typeof mesa === "object") {
-      const id = mesa.id_mesa ?? mesa.id ?? mesa.numero;
-      const numero = mesa.numero ?? mesa.id_mesa ?? mesa.id;
-
-      return {
-        id: String(id ?? "nao-identificada"),
-        numero: numero ?? "Não identificada",
-      };
-    }
-
-    return {
-      id: String(mesa ?? "nao-identificada"),
-      numero: mesa ?? "Não identificada",
-    };
+  // Obtém o número da comanda
+  const obterNumeroComanda = (solicitacao) => {
+      return solicitacao.comanda ?? "Não identificada";
   };
 
-  // Obtém o número da mesa para exibição
+  // Obtém o número da mesa 
   const obterMesa = (solicitacao) => {
-    return obterDadosMesa(solicitacao).numero;
+    return solicitacao.mesa ?? "Não identificada";
   };
 
-  // Formata a data e o horário recebidos da API
+  // Formata a data e o horário das solicitações
   const formatarData = (data) => {
     if (!data) return "Horário não informado";
 
@@ -154,7 +137,7 @@ export default function SolicitacoesGarcom() {
     });
   };
 
-  // Confirma o atendimento usando o ID recebido da API
+  // Confirma o atendimento usando o ID recebido
   const confirmarAtendimento = async (idSolicitacao) => {
     try {
       setCarregandoId(idSolicitacao);
@@ -163,9 +146,7 @@ export default function SolicitacoesGarcom() {
         `/api/solicitacoes/${idSolicitacao}/atender/`,
         {
           method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json",},
         }
       );
 
@@ -183,7 +164,7 @@ export default function SolicitacoesGarcom() {
         throw new Error("O servidor retornou uma resposta vazia.");
       }
 
-      // Atualiza somente a solicitação atendida
+      // Atualiza só a solicitação atendida
       setSolicitacoes((listaAtual) =>
         listaAtual.map((solicitacao) =>
           solicitacao.id === idSolicitacao
@@ -204,9 +185,12 @@ export default function SolicitacoesGarcom() {
   const mesasDisponiveis = [
     ...new Map(
       solicitacoes.map((solicitacao) => {
-        const mesa = obterDadosMesa(solicitacao);
-        return [mesa.id, mesa];
-      })
+            const mesa = solicitacao.mesa ?? "Não identificada";
+            return [
+                String(mesa),
+                { id: String(mesa), numero: mesa },
+            ];
+        })
     ).values(),
   ].sort((a, b) =>
     String(a.numero).localeCompare(String(b.numero), "pt-BR", {
@@ -216,23 +200,19 @@ export default function SolicitacoesGarcom() {
 
   // Aplica os filtros de mesa e status
   const solicitacoesFiltradas = solicitacoes.filter((solicitacao) => {
-    const mesa = obterDadosMesa(solicitacao);
+      const correspondeMesa =
+          mesaSelecionada === "TODAS" ||
+          String(solicitacao.mesa) === String(mesaSelecionada);
 
-    const correspondeMesa =
-      mesaSelecionada === "TODAS" ||
-      mesa.id === mesaSelecionada;
+      const correspondeStatus =
+          statusSelecionado === "TODOS" ||
+          solicitacao.status === statusSelecionado;
 
-    const correspondeStatus =
-      statusSelecionado === "TODOS" ||
-      solicitacao.status === statusSelecionado;
-
-    return correspondeMesa && correspondeStatus;
+      return correspondeMesa && correspondeStatus;
   });
 
   return (
     <main className="flex flex-col gap-8 text-header">
-
-      {/* Cabeçalho */}
       <header>
         <h1 className="font-header text-2xl font-bold">
           Solicitações
@@ -243,15 +223,14 @@ export default function SolicitacoesGarcom() {
         </p>
       </header>
 
-      {/* Filtros e listagem */}
+      {/* Filtros e listagem das mesas */}
       <section className="flex flex-col gap-5">
-
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm font-medium">
+          <p className="text-sm font-medium">
             Filtrar por:
-          </span>
+          </p>
 
-          {/* Filtro por mesa */}
+          {/*Filtro por mesa */}
           <div className="relative">
             <select
               value={mesaSelecionada}
@@ -272,12 +251,11 @@ export default function SolicitacoesGarcom() {
             <img
               src={seta}
               alt=""
-              className="pointer-events-none absolute right-3 top-1/2
-              h-8 w-8 -translate-y-1/2 object-contain"
+              className="pointer-events-none absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 object-contain"
             />
           </div>
 
-          {/* Filtro por status */}
+          {/*Filtro por status */}
           <div className="relative">
             <select
               value={statusSelecionado}
@@ -295,8 +273,7 @@ export default function SolicitacoesGarcom() {
             <img
               src={seta}
               alt=""
-              className="pointer-events-none absolute right-3 top-1/2
-              h-8 w-8 -translate-y-1/2 object-contain"
+              className="pointer-events-none absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 object-contain"
             />
           </div>
         </div>
@@ -329,30 +306,26 @@ export default function SolicitacoesGarcom() {
             return (
               <div
                 key={solicitacao.id}
-                className="w-full flex items-center justify-between gap-4
-                rounded-xl border border-[#D4AF43] p-4"
+                className="w-full flex items-center justify-between gap-4 rounded-xl border border-[#D4AF43] p-4"
               >
-
                 {/* Informações da solicitação */}
                 <div className="flex flex-col gap-2">
-
-                  <h3 className="font-header text-xl font-semibold">
+                  <h3 className="font-header font-semibold">
                     Mesa {obterMesa(solicitacao)}
                   </h3>
-
+                  <p className="text-sm text-header">
+                    Comanda {obterNumeroComanda(solicitacao)}
+                  </p>
                   <p className="text-sm text-header">
                     {obterTipoSolicitacao(solicitacao.tipo)}
                   </p>
-
                   <p className="text-sm text-header">
                     {formatarData(solicitacao.data_solicitacao)}
                   </p>
-
                 </div>
 
                 {/* Status e confirmação */}
                 <div className="flex flex-col items-end gap-8">
-
                   <span
                     className={`rounded-full px-3 py-1 text-sm font-medium ${estiloStatus.cor}`}
                   >
@@ -367,7 +340,7 @@ export default function SolicitacoesGarcom() {
                     }
                     className="w-[220px] rounded-full bg-[#D4AF43]
                     px-4 py-3 text-sm font-semibold text-white
-                    transition-none active:translate-y-[2px]
+                    cursor-pointer active:translate-y-[2px]
                     disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {estaCarregando
@@ -378,12 +351,10 @@ export default function SolicitacoesGarcom() {
                           ? "Solicitação cancelada"
                           : "Confirmar atendimento"}
                   </button>
-
                 </div>
               </div>
             );
           })}
-
         </div>
       </section>
     </main>
