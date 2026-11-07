@@ -16,6 +16,10 @@ import Comandas from "./pages/gerente/Comandas";
 import Pedidos from "./components/Pedidos";
 import { requisicaoApi } from "./utils/api";
 import { atualizarPrecosCarrinho, aplicarPrecosAlterados, dadosEnvioPedido } from "./utils/carrinho";
+import PainelGarcom from "./pages/garcom/PainelGarcom";
+import SolicitacoesGarcom from "./pages/garcom/SolicitacoesGarcom";
+import PedidosGarcom from "./pages/garcom/PedidosGarcom";
+import { SidebarGarcom } from "./components/SidebarGarcom";
 
 const telasGerente = {
   "/gerente": <PainelGerente />,
@@ -25,6 +29,12 @@ const telasGerente = {
   "/gerente/produtos": <Produtos />,
   "/gerente/promocoes": <Promocoes />,
   "/gerente/comandas": <Comandas />,
+};
+
+const telasGarcom = {
+  "/garcom": <PainelGarcom />,
+  "/garcom/solicitacoes": <SolicitacoesGarcom />,
+  "/garcom/pedidos": <PedidosGarcom />,
 };
 
 export default function App() {
@@ -152,28 +162,90 @@ export default function App() {
       setEnviandoPedido(false);
     }
   }
+  
+async function chamarGarcom() {
+  try {
+    const idComanda = localStorage.getItem("id_comanda");
+
+    if (!idComanda) {
+      alert("Não foi possível identificar a comanda.");
+      return;
+    }
+
+    const resposta = await fetch("/api/solicitacoes/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        tipo: "ATENDIMENTO",
+        comanda: Number(idComanda),
+      }),
+    });
+
+    const dados = await resposta.json();
+
+    if (!resposta.ok) {
+      throw new Error(
+        dados.erro ||
+        dados.detail ||
+        "Não foi possível chamar o garçom."
+      );
+    }
+
+    alert("Solicitação enviada! Aguarde o garçom.");
+  } catch (erro) {
+    alert(erro.message || "Erro ao conectar com o servidor.");
+  }
+}
+
+
   // consulta a API, qunado a tela de comanda é aberta
   useEffect(() => {
     if (paginaAtual !== "/comanda") return;
 
-    const buscarPedidos = async () => {
+    const buscarComanda = async () => {
       try {
-        const resposta = await requisicaoApi("/api/pedidos/");
-        const pedidos = resposta.results ?? resposta;
-        const idComanda = localStorage.getItem('id_comanda');
-        const itens = pedidos
-          .filter((pedido) => Number(pedido.comanda) === Number(idComanda))
-          .flatMap((pedido) => pedido.itens_pedido ?? []);
+        const idMesa = localStorage.getItem("id_mesa_tablet");
+
+        if (!idMesa) {
+          setItensComanda([]);
+          return;
+        }
+
+        const resposta = await fetch( 
+          `/api/mesas/${idMesa}/comanda/`
+        );
+
+        const dados = await resposta.json();
+
+        if (!resposta.ok) {
+          throw new Error(
+            dados.erro || "Não foi possível consultar a comanda."
+          );
+        }
+
+        // Junta os itens de todos os pedidos da comanda.
+        const itens = (dados.pedidos ?? []).flatMap((pedido) =>
+          (pedido.itens ?? []).map((item) => ({
+            id: item.id,
+            item: { nome: item.nome },
+            preco: item.preco_unitario,
+            quantidade: item.quantidade,
+            status: item.status,
+          }))
+        );
 
         setItensComanda(itens);
       } catch (erro) {
-        console.error("Erro ao buscar os pedidos:", erro);
+        console.error("Erro ao buscar a comanda:", erro);
+        setItensComanda([]);
       }
     };
 
-    buscarPedidos();
+    buscarComanda();
 
-    const intervalo = setInterval(buscarPedidos, 5000);
+    const intervalo = setInterval(buscarComanda, 5000);
 
     return () => clearInterval(intervalo);
   }, [paginaAtual]);
@@ -205,6 +277,17 @@ export default function App() {
     );
   }
 
+  if (Object.hasOwn(telasGarcom, paginaAtual)) {
+  return (
+    <>
+      <SidebarGarcom paginaAtual={paginaAtual} />
+      <main className="ml-64 min-h-screen bg-fundo p-8">
+        {telasGarcom[paginaAtual]}
+      </main>
+    </>
+  );
+}
+
   // Se já passou possui comanda, exibe a estrutura completa do Cardápio
   return (
     <div className="flex w-full min-h-screen bg-[#F4F0E5]">
@@ -213,6 +296,7 @@ export default function App() {
         paginaAtual={paginaAtual}
         onNavegar={setPaginaAtual}
         onSelecionarCategoria={setCategoriaAtual}
+        onChamarGarcom={chamarGarcom}
       />
       <main className="ml-64 flex-1 p-6">
 
@@ -311,4 +395,5 @@ export default function App() {
 
     </div>
   );
+
 }

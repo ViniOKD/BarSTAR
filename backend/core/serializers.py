@@ -2,7 +2,7 @@ import re
 from rest_framework import serializers
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda
+    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao
 )
 from decimal import Decimal
 from django.db.models import prefetch_related_objects
@@ -370,3 +370,34 @@ class ComandaConsultaSerializer(serializers.ModelSerializer):
                 total += item_pedido.preco * item_pedido.quantidade
 
         return f"{total:.2f}"
+        return total
+        try:
+            parsed = phonenumbers.parse(value, 'BR')
+        except phonenumbers.NumberParseException:
+            raise serializers.ValidationError("O número de telefone informado é inválido.")
+        if not phonenumbers.is_valid_number(parsed):
+            raise serializers.ValidationError("O número de telefone informado é inválido.")
+        return value
+
+class SolicitacaoSerializer(serializers.ModelSerializer):
+    comanda = serializers.PrimaryKeyRelatedField(queryset=Comanda.objects.filter(ativa=True))
+    mesa = serializers.IntegerField(
+        source='comanda.mesa_id',
+        read_only=True,
+    )
+    class Meta:
+        model = Solicitacao
+        fields = [
+            'id',
+            'tipo',
+            'status',
+            'data_solicitacao',
+            'comanda',
+            'mesa',
+        ]
+        read_only_fields = [
+            'id',
+            'status',
+            'data_solicitacao',
+            'mesa',
+        ]

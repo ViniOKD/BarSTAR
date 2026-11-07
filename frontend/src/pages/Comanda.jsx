@@ -2,15 +2,63 @@ import { useState } from "react";
 import formatarPreco from "../utils/formatarPreco";
 import { deCentavos, paraCentavos } from "../utils/valores";
 
+
 export default function Comanda({ itens = [] }) {
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
   const [fechamentoSolicitado, setFechamentoSolicitado] = useState(false);
+  const [carregandoFechamento, setCarregandoFechamento] = useState(false);
+  const [erroFechamento, setErroFechamento] = useState("");
 
   const total = itens.reduce(
     (soma, item) => soma + BigInt(paraCentavos(item.preco)) * BigInt(item.quantidade),
     0n
   );
 
+  // Envia a solicitação de fechamento ao backend.
+  const solicitarFechamento = async () => {
+    if (carregandoFechamento || fechamentoSolicitado) return;
+
+    setCarregandoFechamento(true);
+    setErroFechamento("");
+
+    try {
+      const idComanda = localStorage.getItem("id_comanda");
+
+      if (!idComanda) {
+        throw new Error("Não foi possível identificar a comanda.");
+      }
+
+      const resposta = await fetch("/api/solicitacoes/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tipo: "FECHAMENTO",
+          comanda: Number(idComanda),
+        }),
+      });
+
+      const dados = await resposta.json();
+
+      if (!resposta.ok) {
+        throw new Error(
+          dados.erro ||
+          dados.detail ||
+          "Não foi possível solicitar o fechamento da conta."
+        );
+      }
+
+      setMostrarConfirmacao(false);
+      setFechamentoSolicitado(true);
+    } catch (erro) {
+      setErroFechamento(
+        erro.message || "Erro ao conectar com o servidor."
+      );
+    } finally {
+      setCarregandoFechamento(false);
+    }
+  };
   return (
     <section className="text-header">
       <div className="mb-6">
@@ -133,7 +181,11 @@ export default function Comanda({ itens = [] }) {
             <p className="mt-2 text-sm text-header/80">
               Deseja solicitar o fechamento da sua conta?
             </p>
-
+            {erroFechamento && (
+              <p role="alert" className="mt-3 text-sm font-medium text-red-600">
+                {erroFechamento}
+              </p>
+            )}
             <p className="mt-3 font-bold text-[#996315]">
               Total: {formatarPreco(deCentavos(total))}
             </p>
@@ -149,14 +201,16 @@ export default function Comanda({ itens = [] }) {
 
               <button
                 type="button"
-                onClick={() => {
-                  setMostrarConfirmacao(false);
-                  setFechamentoSolicitado(true);
-                }}
-                className="rounded-lg bg-header px-4 py-2 font-header font-bold text-destaque transition hover:opacity-90"
+                onClick={solicitarFechamento}
+                disabled={carregandoFechamento || fechamentoSolicitado}
+                className="rounded-lg bg-header px-4 py-2 font-header font-bold text-destaque transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Entendi
-              </button>
+                {carregandoFechamento
+                  ? "Enviando solicitação..."
+                  : fechamentoSolicitado
+                    ? "Solicitação feita!"
+                    : "Confirmar fechamento"}
+            </button>
             </div>
           </div>
         )}
