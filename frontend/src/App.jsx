@@ -49,6 +49,7 @@ export default function App() {
   const [atualizandoPedido, setAtualizandoPedido] = useState(false);
   const [erroPedido, setErroPedido] = useState("");
   const [avisoPedido, setAvisoPedido] = useState("");
+  const [solicitacoesPendentes, setSolicitacoesPendentes] = useState([]);
   const operacaoPedido = useRef(false);
 
   async function abrirPedidos() {
@@ -250,6 +251,41 @@ async function chamarGarcom() {
     return () => clearInterval(intervalo);
   }, [paginaAtual]);
 
+useEffect(() => {
+  if (!Object.hasOwn(telasGarcom, paginaAtual)) return;
+
+  async function buscarSolicitacoes() {
+    try {
+      const resposta = await fetch("/api/solicitacoes/");
+
+      if (!resposta.ok) {
+        throw new Error("Não foi possível consultar as solicitações.");
+      }
+
+      const dados = await resposta.json();
+
+      const lista = Array.isArray(dados)
+        ? dados
+        : dados.results ?? [];
+
+      const pendentes = lista.filter(
+        solicitacao => solicitacao.status === "PENDENTE"
+      );
+
+      setSolicitacoesPendentes(pendentes);
+
+    } catch (erro) {
+      console.error("Erro ao consultar solicitações:", erro);
+    }
+  }
+
+  buscarSolicitacoes();
+
+  const intervalo = setInterval(buscarSolicitacoes, 5000);
+
+  return () => clearInterval(intervalo);
+}, [paginaAtual]);
+
   // Verifica se o usuário está na tela inicial/abertura de comanda
   const isTelaInicial = paginaAtual === "/" || paginaAtual === "/abrir-comanda";
 
@@ -269,7 +305,7 @@ async function chamarGarcom() {
   if (Object.hasOwn(telasGerente, paginaAtual)) {
     return (
       <>
-        <SidebarGerente paginaAtual={paginaAtual} />
+        <SidebarGerente paginaAtual={paginaAtual}  />
         <main className="ml-64 min-h-screen bg-fundo p-8">
           {telasGerente[paginaAtual]}
         </main>
@@ -278,15 +314,15 @@ async function chamarGarcom() {
   }
 
   if (Object.hasOwn(telasGarcom, paginaAtual)) {
-  return (
-    <>
-      <SidebarGarcom paginaAtual={paginaAtual} />
-      <main className="ml-64 min-h-screen bg-fundo p-8">
-        {telasGarcom[paginaAtual]}
-      </main>
-    </>
-  );
-}
+    return (
+      <>
+        <SidebarGarcom paginaAtual={paginaAtual} quantidadePendentes={solicitacoesPendentes.length}/>
+        <main className="ml-64 min-h-screen bg-fundo p-8">
+          {telasGarcom[paginaAtual]}
+        </main>
+      </>
+    );
+  }
 
   // Se já passou possui comanda, exibe a estrutura completa do Cardápio
   return (

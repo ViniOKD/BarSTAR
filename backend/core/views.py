@@ -357,9 +357,6 @@ class ItensPromocaoViewSet(viewsets.ModelViewSet):
     queryset = ItensPromocao.objects.all()
     serializer_class = ItensPromocaoSerializer
 
-class PromocaoViewSet(viewsets.ModelViewSet):
-    queryset = Promocao.objects.all()
-    serializer_class = PromocaoSerializer
 
 class SolicitacaoViewSet(viewsets.ModelViewSet):
     queryset = Solicitacao.objects.select_related('comanda__mesa').all()
@@ -368,7 +365,6 @@ class SolicitacaoViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         #Permite consultar solicitações com determinado status
         solicitacoes = super().get_queryset()
-        
         status_filtro = self.request.query_params.get('status')
         id_mesa = self.request.query_params.get('mesa')
 
@@ -387,43 +383,62 @@ class SolicitacaoViewSet(viewsets.ModelViewSet):
         if solicitacao.status != Solicitacao.StatusSolicitacao.PENDENTE:
             return Response(
                 {'erro': 'Apenas solicitações pendentes podem ser atendidas.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+                status=status.HTTP_400_BAD_REQUEST)
 
         solicitacao.status = Solicitacao.StatusSolicitacao.ATENDIDA
         solicitacao.save()
-
         serializer = self.get_serializer(solicitacao)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         id_comanda = request.data.get('comanda')
+
         if not id_comanda:
             return Response(
                 {'erro': 'Informe o ID da comanda.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            comanda = Comanda.objects.get(
-                pk=id_comanda,
-                ativa=True
-            )
-        except (Comanda.DoesNotExist, ValueError, TypeError):
-            return Response(
-                {'erro': 'Comanda não encontrada ou inativa.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+                status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(comanda=comanda)
+
+        try:
+            with transaction.atomic():
+                #Bloqueia a comanda durante a verificação e a criação.
+                comanda = Comanda.objects.select_for_update().get(
+                    pk=id_comanda,
+                    ativa=True
+                )
+
+                #Verifica se já existe um fechamento pendente.
+                if serializer.validated_data.get('tipo') == 'FECHAMENTO':
+
+                    fechamento_pendente = Solicitacao.objects.filter(
+                        comanda=comanda,
+                        tipo='FECHAMENTO',
+                        status='PENDENTE'
+                    ).exists()
+
+                    if fechamento_pendente:
+                        return Response(
+                            {
+                                'erro': (
+                                    'Já existe uma solicitação de fechamento '
+                                    'pendente para esta comanda.'
+                                )
+                            },
+                            status=status.HTTP_409_CONFLICT
+                        )
+                #cria a solicitação.
+                serializer.save(comanda=comanda)
+        except (Comanda.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {'erro': 'Comanda não encontrada ou inativa.'},
+                status=status.HTTP_400_BAD_REQUEST)
 
         return Response(
             serializer.data,
-            status=status.HTTP_201_CREATED
-        )
+            status=status.HTTP_201_CREATED)
 
 class LogoutView(APIView):
     def post(self, request):

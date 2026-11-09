@@ -59,6 +59,7 @@ export default function Comanda({ itens = [] }) {
       setCarregandoFechamento(false);
     }
   };
+  console.log("Itens da comanda:", itens);
   return (
     <section className="text-header">
       <div className="mb-6">
@@ -79,7 +80,7 @@ export default function Comanda({ itens = [] }) {
             >
               <div className="min-w-0 flex-1">
                 <h2 className="font-header font-bold">
-                  {registro.nome}
+                  {registro.item.nome}
                 </h2>
                 {registro.preco_original != null && paraCentavos(registro.preco_original) > paraCentavos(registro.preco) && (
                   <p className="mt-1 text-sm text-header/70">
@@ -147,7 +148,7 @@ export default function Comanda({ itens = [] }) {
       <div className="mt-8 border-t-2 border-hover pt-5">
         <div className="flex items-center justify-between gap-4">
           <span className="font-header text-lg font-bold">
-            Total acumulado
+            Total 
           </span>
           <span className="text-2xl font-bold text-[#996315]">
             {formatarPreco(deCentavos(total))}

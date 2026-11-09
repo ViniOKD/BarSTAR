@@ -353,32 +353,6 @@ class PedidoComandaSerializer(serializers.ModelSerializer): #junta os itens de c
         model = Pedido
         fields = ["id", "data_pedido", "concluido", "itens"]
 
-
-class ComandaConsultaSerializer(serializers.ModelSerializer):
-    mesa = serializers.IntegerField(source="mesa_id", read_only=True)
-    pedidos = PedidoComandaSerializer(many=True, read_only=True)
-    total = serializers.SerializerMethodField()
-    class Meta:
-        model = Comanda
-        fields = ["id", "mesa", "pedidos", "total"]
-
-    def get_total(self, obj):
-        total = Decimal("0.00")
-
-        for pedido in obj.pedidos.all():
-            for item_pedido in pedido.itens_pedido.all():
-                total += item_pedido.preco * item_pedido.quantidade
-
-        return f"{total:.2f}"
-        return total
-        try:
-            parsed = phonenumbers.parse(value, 'BR')
-        except phonenumbers.NumberParseException:
-            raise serializers.ValidationError("O número de telefone informado é inválido.")
-        if not phonenumbers.is_valid_number(parsed):
-            raise serializers.ValidationError("O número de telefone informado é inválido.")
-        return value
-
 class SolicitacaoSerializer(serializers.ModelSerializer):
     comanda = serializers.PrimaryKeyRelatedField(queryset=Comanda.objects.filter(ativa=True))
     mesa = serializers.IntegerField(
@@ -401,3 +375,20 @@ class SolicitacaoSerializer(serializers.ModelSerializer):
             'data_solicitacao',
             'mesa',
         ]
+
+class ComandaConsultaSerializer(serializers.ModelSerializer):
+    mesa = serializers.IntegerField(source="mesa_id", read_only=True)
+    pedidos = PedidoComandaSerializer(many=True, read_only=True)
+    total = serializers.SerializerMethodField()
+    class Meta:
+        model = Comanda
+        fields = ["id", "mesa", "pedidos", "total"]
+
+    def get_total(self, obj):
+        total = Decimal("0.00")
+
+        for pedido in obj.pedidos.all():
+            for item_pedido in pedido.itens_pedido.all():
+                total += item_pedido.preco * item_pedido.quantidade
+
+        return f"{total:.2f}"

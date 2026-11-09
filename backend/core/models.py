@@ -167,7 +167,7 @@ class Solicitacao(models.Model):
         ordering = ['data_solicitacao']
         indexes = [
             models.Index(fields=['status', 'data_solicitacao']),
-            models.Index(fields=['comanda', 'status']), #precisa?
+            models.Index(fields=['comanda', 'status']), 
         ]
 
     def __str__(self):

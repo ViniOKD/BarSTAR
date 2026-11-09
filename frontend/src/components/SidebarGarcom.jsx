@@ -5,7 +5,7 @@ import pessoa from "../assets/pessoa.png";
 const linksPrincipais = [
   { nome: "Painel de Atendimento", href: "/garcom" },
   { nome: "Solicitações", href: "/garcom/solicitacoes" },
-  { nome: "Pedidos", href: "/garcom/pedidos" },,
+  { nome: "Pedidos", href: "/garcom/pedidos" },
 ];
 
 const estiloLink = "flex min-h-12 w-full items-center rounded-lg px-4 py-3 text-left font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hover";
@@ -58,10 +58,9 @@ function BotaoSair() {
   );
 }
 
-export function SidebarGarcom({ paginaAtual = "/garcom", onNavegar }) {
+export function SidebarGarcom({ paginaAtual = "/garcom", onNavegar,quantidadePendentes= 0 }) {
   function navegar(evento, destino) {
     if (!onNavegar) return;
-
     evento.preventDefault();
     onNavegar(destino);
   }
@@ -102,7 +101,13 @@ export function SidebarGarcom({ paginaAtual = "/garcom", onNavegar }) {
                 aria-current={ativo ? "page" : undefined}
                 className={obterEstiloLink(ativo)}
               >
-                {link.nome}
+                <span>{link.nome}</span>
+                  {link.href === "/garcom/solicitacoes" &&
+                    quantidadePendentes > 0 && (
+                      <span className="ml-auto rounded-full bg-red-500 px-2 py-1 text-xs text-white">
+                        {quantidadePendentes}
+                      </span>
+                    )}
               </a>
             );
           })}
