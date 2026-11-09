@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { requisicaoApi } from "../utils/api";
 import "./Configuracoes.css";
 
 function IconeCampo({ senha = false }) {
@@ -27,29 +28,28 @@ export default function Configuracoes() {
     setMensagem("");
     setCarregando(true);
     try {
-      const resposta = await fetch("/api/login/", {
+      await requisicaoApi("/api/login/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cpf, senha }),
       });
-      if (!resposta.ok) {
-        setErro(resposta.status >= 500
-          ? "Servidor indisponível. Tente novamente mais tarde."
-          : "Não foi possível entrar. Verifique seu CPF e senha.");
-        setSenha("");
-        return;
-      }
-
-       // Salvando o ID do gerente no navegador
+      // Salvando o ID do gerente no navegador
       const dados = await resposta.json();
-
       if (dados.gerente && dados.gerente.id) {
         localStorage.setItem("gerente_id", dados.gerente.id);
       }
-
       window.location.href = "/gerente";
-    } catch {
-      setErro("Não foi possível conectar ao servidor. Verifique a conexão.");
+    } catch (erro) {
+      if (erro.status === 401) {
+        setErro("Não foi possível entrar. Verifique seu CPF e senha.");
+        setSenha("");
+      } else if (erro.status === 403) {
+        setErro("Não foi possível validar a sessão. Recarregue a página e tente novamente.");
+      } else if (erro.status >= 500) {
+        setErro("Servidor indisponível. Tente novamente mais tarde.");
+      } else {
+        setErro(erro.message || "Não foi possível conectar ao servidor. Verifique a conexão.");
+      }
     } finally {
       setCarregando(false);
     }

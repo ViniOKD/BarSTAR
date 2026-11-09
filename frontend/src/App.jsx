@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FormAberturaComanda } from "./components/FormAberturaComanda";
 import Sidebar from "./components/Sidebar";
 import Bebidas from "./pages/Bebidas";
@@ -14,6 +14,8 @@ import Produtos from "./pages/gerente/Produtos";
 import Promocoes from "./pages/gerente/Promocoes";
 import Comandas from "./pages/gerente/Comandas";
 import Pedidos from "./components/Pedidos";
+import { requisicaoApi } from "./utils/api";
+import { atualizarPrecosCarrinho, aplicarPrecosAlterados, dadosEnvioPedido } from "./utils/carrinho";
 
 const telasGerente = {
   "/gerente": <PainelGerente />,
@@ -34,6 +36,37 @@ export default function App() {
   const [itensPedido, setItensPedido] = useState([]);
   const [itemEmEdicao, setItemEmEdicao] = useState(null);
   const [enviandoPedido, setEnviandoPedido] = useState(false);
+  const [atualizandoPedido, setAtualizandoPedido] = useState(false);
+  const [erroPedido, setErroPedido] = useState("");
+  const [avisoPedido, setAvisoPedido] = useState("");
+  const operacaoPedido = useRef(false);
+
+  async function abrirPedidos() {
+    if (operacaoPedido.current) return;
+    operacaoPedido.current = true;
+    setPedidosAberto(true);
+    setAtualizandoPedido(true);
+    setErroPedido("");
+    setAvisoPedido("");
+    try {
+      const resposta = await requisicaoApi("/api/itens/?disponivel=true", { cache: "no-store" });
+      const produtos = resposta.results ?? resposta;
+      const atualizadas = atualizarPrecosCarrinho(itensPedido, produtos);
+      setItensPedido(atuais => atualizarPrecosCarrinho(atuais, produtos));
+      if (atualizadas.some(item => item.disponivel === false)) {
+        setAvisoPedido("Há produtos indisponíveis. Remova-os ou atualize os preços antes de enviar.");
+      } else if (atualizadas.some((item, indice) =>
+        item.preco_atual !== itensPedido[indice].preco_atual ||
+        item.promocao_atual?.id !== itensPedido[indice].promocao_atual?.id)) {
+        setAvisoPedido("Os preços ou promoções foram atualizados. Confira os valores antes de enviar.");
+      }
+    } catch {
+      setErroPedido("Não foi possível conferir os preços. Atualize os preços para tentar novamente.");
+    } finally {
+      operacaoPedido.current = false;
+      setAtualizandoPedido(false);
+    }
+  }
 
   function adicionarItemPedido(item) {
     setItensPedido((itensAtuais) => [
@@ -78,48 +111,44 @@ export default function App() {
   }
 
   async function enviarPedido() {
-    if (itensPedido.length === 0 || enviandoPedido) return;
+    if (operacaoPedido.current || itensPedido.length === 0 || erroPedido ||
+        itensPedido.some(item => item.disponivel === false)) return;
     const idComanda = localStorage.getItem("id_comanda");
 
     if (!idComanda) {
-      alert("Não foi possível identificar a comanda.");
+      setErroPedido("Não foi possível identificar a comanda. Procure o atendimento.");
       return;
     }
 
-    const dadosPedido = {
-      comanda_id: Number(idComanda),
-      itens: itensPedido.map((item) => ({
-        item_id: item.id,
-        quantidade: item.quantidade,
-        observacoes: item.observacoes || "",
-      })),
-    };
-
+    operacaoPedido.current = true;
+    setEnviandoPedido(true);
+    setErroPedido("");
+    setAvisoPedido("");
     try {
-      setEnviandoPedido(true);
-      const resposta = await fetch("/api/enviar-pedido/", {
+      const idsEnviados = new Set(itensPedido.map(item => item.idItemPedido));
+      await requisicaoApi("/api/enviar-pedido/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(dadosPedido),
+        body: JSON.stringify(dadosEnvioPedido(idComanda, itensPedido)),
       });
-
-      const dados = await resposta.json();
-      if (!resposta.ok) {
-        throw new Error(
-          dados.erro || "Não foi possível enviar o pedido."
-        );
-      }
-
-      setItensPedido([]);
+      setItensPedido(atuais => atuais.filter(item => !idsEnviados.has(item.idItemPedido)));
       setPedidosAberto(false);
-
-      alert("Pedido enviado para preparo!");
+      setAvisoPedido("Pedido enviado para preparo!");
     } catch (erro) {
-      console.error("Erro ao enviar pedido:", erro);
-      alert(erro.message);
+      if (erro.status === 409 && erro.dados?.codigo === "PRECO_ALTERADO") {
+        setItensPedido(atuais => aplicarPrecosAlterados(atuais, erro.dados.itens_atualizados));
+        setAvisoPedido("Os preços ou promoções mudaram. Confira os novos valores e confirme novamente.");
+        try {
+          // O conflito não contém o preço normal atualizado; recarrega o cadastro antes da confirmação.
+          const resposta = await requisicaoApi("/api/itens/?disponivel=true", { cache: "no-store" });
+          setItensPedido(atuais => atualizarPrecosCarrinho(atuais, resposta.results ?? resposta));
+        } catch {
+          setErroPedido("Não foi possível conferir os novos preços. Atualize os preços antes de confirmar.");
+        }
+      } else {
+        setErroPedido(erro.message || "Não foi possível enviar o pedido. Tente novamente.");
+      }
     } finally {
+      operacaoPedido.current = false;
       setEnviandoPedido(false);
     }
   }
@@ -129,13 +158,8 @@ export default function App() {
 
     const buscarPedidos = async () => {
       try {
-        const resposta = await fetch("/api/pedidos/");
-
-        if (!resposta.ok) {
-          throw new Error("Não foi possível consultar os pedidos.");
-        }
-
-        const pedidos = await resposta.json();
+        const resposta = await requisicaoApi("/api/pedidos/");
+        const pedidos = resposta.results ?? resposta;
         const idComanda = localStorage.getItem('id_comanda');
         const itens = pedidos
           .filter((pedido) => Number(pedido.comanda) === Number(idComanda))
@@ -196,7 +220,8 @@ export default function App() {
           <div className="mb-6 flex justify-end">
             <button
               type="button"
-              onClick={() => setPedidosAberto(true)}
+              onClick={abrirPedidos}
+              disabled={atualizandoPedido || enviandoPedido}
               aria-label="Abrir pedidos"
               className="relative flex min-h-11 items-center gap-2 rounded-lg
                         border border-hover bg-white px-4 py-2 font-bold
@@ -229,6 +254,7 @@ export default function App() {
         {/* Conteúdo do Cardápio */}
         {paginaAtual === "/cardapio" && (
           <>
+            {!pedidosAberto && avisoPedido && <p role="status" className="mb-4 rounded-lg border border-hover bg-destaque p-3">{avisoPedido}</p>}
             <h1 className="mb-6 font-header text-2xl font-bold text-header">
               {categoriaAtual === "bebidas"
                 ? "Bebidas"
@@ -273,6 +299,10 @@ export default function App() {
             onEditarItem={editarItemPedido}
             onEnviar={enviarPedido}
             enviando={enviandoPedido}
+            atualizando={atualizandoPedido}
+            erro={erroPedido}
+            aviso={avisoPedido}
+            onAtualizar={abrirPedidos}
           />
         )}
 

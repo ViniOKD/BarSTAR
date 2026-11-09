@@ -1,5 +1,6 @@
 import { useState } from "react";
 import logo from "../assets/logo.svg";
+import { requisicaoApi } from "../utils/api.js";
 
 const linksPrincipais = [
   { nome: "Dashboard", href: "/gerente" },
@@ -28,15 +29,7 @@ function BotaoSair() {
     setSaindo(true);
     setErro("");
     try {
-      const csrfToken = document.cookie
-        .split("; ")
-        .find((cookie) => cookie.startsWith("csrftoken="))
-        ?.slice("csrftoken=".length);
-      const resposta = await fetch("/api/logout/", {
-        method: "POST",
-        headers: { "X-CSRFToken": csrfToken ?? "" },
-      });
-      if (!resposta.ok) throw new Error("Falha ao sair");
+      await requisicaoApi("/api/logout/", { method: "POST" });
 
       window.location.replace("/configuracoes");
     } catch {

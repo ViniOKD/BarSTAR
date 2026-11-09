@@ -1,13 +1,14 @@
 import { useState } from "react";
 import formatarPreco from "../utils/formatarPreco";
+import { deCentavos, paraCentavos } from "../utils/valores";
 
 export default function Comanda({ itens = [] }) {
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
   const [fechamentoSolicitado, setFechamentoSolicitado] = useState(false);
 
   const total = itens.reduce(
-    (soma, item) => soma + Number(item.preco) * Number(item.quantidade),
-    0
+    (soma, item) => soma + BigInt(paraCentavos(item.preco)) * BigInt(item.quantidade),
+    0n
   );
 
   return (
@@ -30,11 +31,19 @@ export default function Comanda({ itens = [] }) {
             >
               <div className="min-w-0 flex-1">
                 <h2 className="font-header font-bold">
-                  {registro.item.nome}
+                  {registro.nome}
                 </h2>
+                {registro.preco_original != null && paraCentavos(registro.preco_original) > paraCentavos(registro.preco) && (
+                  <p className="mt-1 text-sm text-header/70">
+                    <span className="sr-only">Preço original: </span><s>{formatarPreco(registro.preco_original)}</s>
+                  </p>
+                )}
                 <p className="mt-1 text-sm text-header/70">
                   {formatarPreco(registro.preco)} por unidade
                 </p>
+                {registro.nome_promocao_registrada && (
+                  <p className="mt-1 text-sm text-header/70">Promoção: {registro.nome_promocao_registrada}</p>
+                )}
               </div>
 
               <div className="flex shrink-0 flex-col items-center gap-1">
@@ -69,7 +78,7 @@ export default function Comanda({ itens = [] }) {
                 <p className="text-sm text-header/70">Subtotal</p>
                 <p className="font-bold text-[#996315]">
                   {formatarPreco(
-                    Number(registro.preco) * Number(registro.quantidade)
+                    deCentavos(BigInt(paraCentavos(registro.preco)) * BigInt(registro.quantidade))
                   )}
                 </p>
               </div>
@@ -93,7 +102,7 @@ export default function Comanda({ itens = [] }) {
             Total acumulado
           </span>
           <span className="text-2xl font-bold text-[#996315]">
-            {formatarPreco(total)}
+            {formatarPreco(deCentavos(total))}
           </span>
         </div>
 
@@ -126,7 +135,7 @@ export default function Comanda({ itens = [] }) {
             </p>
 
             <p className="mt-3 font-bold text-[#996315]">
-              Total: {formatarPreco(total)}
+              Total: {formatarPreco(deCentavos(total))}
             </p>
 
             <div className="mt-4 flex justify-end gap-3">

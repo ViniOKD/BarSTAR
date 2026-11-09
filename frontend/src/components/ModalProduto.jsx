@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import formatarPreco from "../utils/formatarPreco";
+import { deCentavos, paraCentavos } from "../utils/valores";
 
 const estiloFoco = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hover";
 const estiloCampo = `rounded-lg border border-hover bg-fundo ${estiloFoco}`;
@@ -14,16 +15,13 @@ export default function ModalProduto({ produto, onFechar, onAdicionar,  itemEmEd
   const observacoesId = `${modalId}-observacoes`;
   const [quantidade, setQuantidade] = useState(itemEmEdicao?.quantidade ?? 1);
   const [observacoes, setObservacoes] = useState(itemEmEdicao?.observacoes ?? "");
-  const preco = Number(produto.preco_unitario);
+  const preco = itemEmEdicao?.preco_atual ?? produto.preco_atual;
   const quantidadeNumerica = Number(quantidade);
-  const quantidadeValida = Number.isInteger(quantidadeNumerica) && quantidadeNumerica >= 1;
-  const subtotal = preco * (quantidadeValida ? quantidadeNumerica : 0);
+  const quantidadeValida = Number.isInteger(quantidadeNumerica) && quantidadeNumerica >= 1
+    && quantidadeNumerica <= 2147483647;
+  const subtotal = BigInt(paraCentavos(preco)) * BigInt(quantidadeValida ? quantidadeNumerica : 0);
   const detalhe = produto.detalhe || (produto.volume_ml != null ? `${produto.volume_ml} ml` : "");
-
-  useEffect(() => {
-    setQuantidade(itemEmEdicao?.quantidade ?? 1);
-    setObservacoes(itemEmEdicao?.observacoes ?? "");
-  }, [itemEmEdicao]);
+  const emPromocao = produto.promocao_atual && paraCentavos(preco) < paraCentavos(produto.preco_unitario);
 
   useEffect(() => {
     const modal = modalRef.current;
@@ -43,6 +41,14 @@ export default function ModalProduto({ produto, onFechar, onAdicionar,  itemEmEd
       onCancel={(evento) => {
         evento.preventDefault();
         onFechar();
+      }}
+      onMouseDown={(evento) => {
+        if (evento.target !== evento.currentTarget) return;
+        const limites = evento.currentTarget.getBoundingClientRect();
+        if (evento.clientX < limites.left || evento.clientX > limites.right
+          || evento.clientY < limites.top || evento.clientY > limites.bottom) {
+          onFechar();
+        }
       }}
       aria-labelledby={tituloId}
       className="m-auto max-h-[90dvh] w-[min(720px,calc(100%-32px))] overflow-y-auto rounded-lg border border-hover bg-destaque p-0 text-header shadow-xl backdrop:bg-black/60"
@@ -73,7 +79,19 @@ export default function ModalProduto({ produto, onFechar, onAdicionar,  itemEmEd
             {detalhe && <p className="mt-2 text-sm text-header/70">{detalhe}</p>}
           </div>
 
-          <p className={estiloPreco}>{formatarPreco(preco)}</p>
+          <div>
+            {emPromocao && (
+              <>
+                <p className="text-sm text-header/70">
+                  <span className="sr-only">Preço normal: </span><s>{formatarPreco(produto.preco_unitario)}</s>
+                </p>
+                <p className="text-sm font-semibold">
+                  {produto.promocao_atual.desconto_percentual}% de desconto · {produto.promocao_atual.nome}
+                </p>
+              </>
+            )}
+            <p className={estiloPreco}>{formatarPreco(preco)}</p>
+          </div>
 
           {Number(produto.teor_alcoolico) > 0 && (
             <p className="rounded-lg bg-hover/25 p-2 text-sm">
@@ -87,12 +105,20 @@ export default function ModalProduto({ produto, onFechar, onAdicionar,  itemEmEd
               id={quantidadeId}
               type="number"
               min="1"
+              max="2147483647"
               step="1"
               required
               value={quantidade}
+              aria-invalid={!quantidadeValida}
+              aria-describedby={!quantidadeValida ? `${quantidadeId}-erro` : undefined}
               onChange={(evento) => setQuantidade(evento.target.value)}
               className={`${estiloCampo} min-h-12 w-24 px-3`}
             />
+            {!quantidadeValida && (
+              <p id={`${quantidadeId}-erro`} role="alert" className="mt-1 text-sm text-red-700">
+                Informe uma quantidade inteira válida para este produto.
+              </p>
+            )}
           </div>
 
           <div>
@@ -109,7 +135,7 @@ export default function ModalProduto({ produto, onFechar, onAdicionar,  itemEmEd
 
           <div className="flex items-center justify-between border-t border-hover pt-2">
             <span>Subtotal</span>
-            <span className={estiloPreco}>{formatarPreco(subtotal)}</span>
+            <span className={estiloPreco}>{formatarPreco(deCentavos(subtotal))}</span>
           </div>
           <button
             type="button"
@@ -117,6 +143,8 @@ export default function ModalProduto({ produto, onFechar, onAdicionar,  itemEmEd
             onClick={() => {
               onAdicionar({
                 ...produto,
+                ...itemEmEdicao,
+                preco_atual: preco,
                 quantidade: quantidadeNumerica,
                 observacoes: observacoes.trim(),
               });
