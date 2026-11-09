@@ -33,6 +33,11 @@ export default function Configuracoes() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cpf, senha }),
       });
+      // Salvando o ID do gerente no navegador
+      const dados = await resposta.json();
+      if (dados.gerente && dados.gerente.id) {
+        localStorage.setItem("gerente_id", dados.gerente.id);
+      }
       window.location.href = "/gerente";
     } catch (erro) {
       if (erro.status === 401) {

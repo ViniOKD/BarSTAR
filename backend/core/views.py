@@ -9,16 +9,20 @@ from rest_framework.views import APIView
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
 from rest_framework.exceptions import ValidationError
 from django.utils import timezone
+from decimal import Decimal
+from rest_framework.decorators import action
+
 from .services.dar_preco import calcular_preco_final
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda
+    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Reserva
 )
 from .serializers import (
     PedidoSerializer, CategoriaSerializer, GerenteSerializer, GarcomSerializer,
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
-    FiltroCardapioSerializer,ComandaConsultaSerializer, ItemCardapioSerializer, EnviarPedidoSerializer)
+    FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer,
+    ItemCardapioSerializer, EnviarPedidoSerializer)
 from .permissions import PermissoesPromocao
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
@@ -139,14 +143,14 @@ class AbrirComandaView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-            if not mesa.ativo:
+            if mesa.status == Mesa.Status.INATIVA:
                 return Response(
-                    {'erro': 'Mesa não está ativa.'},
+                    {'erro': 'Mesa não está ativa e não pode receber novas comandas.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
             # Verifica se a mesa já possui comanda ativa
-            if Comanda.objects.filter(mesa=mesa, ativa=True).exists():
+            if mesa.status == Mesa.Status.OCUPADA:
                 return Response(
                     {"erro": "Esta mesa já possui uma comanda em andamento. Procure o garçom para fechar a comanda atual."},
                     status=status.HTTP_400_BAD_REQUEST
@@ -225,11 +229,128 @@ class GarcomViewSet(viewsets.ModelViewSet):
     queryset = Garcom.objects.all()
     serializer_class = GarcomSerializer
 
+class ReservaViewSet(viewsets.ModelViewSet):
+    queryset = Reserva.objects.all()
+    serializer_class = ReservaSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            reserva = self.get_object()
+            reserva.delete()
+            return Response(
+                {"mensagem": "Reserva cancelada com sucesso!"}, 
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response({"erro": "Reserva não encontrada ou já removida."}, status=status.HTTP_404_NOT_FOUND)
+        
 class MesaViewSet(viewsets.ModelViewSet):
     queryset = Mesa.objects.all()
     serializer_class = MesaSerializer
 
+    def destroy(self, request, *args, **kwargs):
+        mesa = self.get_object()
 
+        if mesa.comandas.filter(ativa=True).exists():
+            return Response(
+                 {"erro": "Não é possivel excluir esta mesa pois ela possui uma comanda ativa em andamento."},
+                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return super().destroy(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        mesa = self.get_object()
+        novo_status = request.data.get('status')
+
+        if novo_status == Mesa.Status.INATIVA:
+            if mesa.comandas.filter(ativa=True).exists():
+                return Response(
+                    {"erro": "Não é possível inativa esta mesa pois ela possui uma comanda ativa."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return super().update(request, *args, **kwargs)
+
+    @action(detail=True, methods=['POST'])
+    def reservar(self, request, pk=None):
+        mesa = self.get_object()
+
+        # Verifica se a mesa já não está ocupada ou inativa
+        if mesa.status == 'INATIVA':
+            return Response(
+                {"erro": f"Não é possível reservar. A mesa está com status {mesa.status}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        data_reserva_str = request.data.get('data_reserva')
+        hoje_str = timezone.now().date().isoformat()
+
+        if (mesa.status == Mesa.Status.AGRUPADA or mesa.mesa_agrupada is not None) and data_reserva_str == hoje_str:
+            return Response(
+                {"erro": f"A Mesa #{mesa.id} está agrupada à Mesa #{mesa.mesa_agrupada_id}. Faça a reserva diretamente na mesa principal."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+       
+        # Passa o ID da mesa no contexto para a validação de conflito
+        serializer = ReservaSerializer(data=request.data, context={'mesa_id': mesa.id})
+
+        if serializer.is_valid():
+            # Salva a reserva vinculando à mesa atual
+            serializer.save(mesa=mesa)
+
+            return Response({"mensagem": "Reserva criada com sucesso!"}, status=status.HTTP_201_CREATED)
+        
+        # Erro: a validação de data no passado ou campo obrigatório falhou
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['POST'])
+    def juntar(self, request, pk=None):
+        mesa_principal = self.get_object()
+        mesas_ids = request.data.get('mesas_ids', []) # O front vai enviar um array: [2, 3]
+
+        if not mesas_ids:
+            return Response({"erro": "Nenhuma mesa selecionada para juntar."}, status=status.HTTP_400_BAD_REQUEST)
+
+        mesas_filhas = Mesa.objects.filter(id__in=mesas_ids)
+
+
+        for mesa in mesas_filhas:
+            if mesa.status != Mesa.Status.LIVRE:
+                return Response(
+                    {"erro": f"A mesa {mesa.id} não pode ser agrupada pois está com status {mesa.status}."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if mesa.id == mesa_principal.id:
+                return Response(
+                    {"erro": "Uma mesa não pode ser agrupada a si mesma."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Vincula à mesa principal e muda o status para AGRUPADA
+        mesas_filhas.update(mesa_agrupada=mesa_principal, status=Mesa.Status.AGRUPADA)
+
+        return Response(
+            {"mensagem": f"Mesas agrupadas com sucesso à Mesa {mesa_principal.id}!"}, 
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['POST'])
+    def separar(self, request, pk=None):
+        mesa_principal = self.get_object()
+        
+        mesas_filhas = mesa_principal.mesas_agrupadas.all()
+        if not mesas_filhas.exists():
+            return Response(
+                {"erro": "Esta mesa não possui outras mesas agrupadas a ela."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Libera as mesas filhas, tirando o vínculo e voltando para LIVRE
+        mesas_filhas.update(mesa_agrupada=None, status=Mesa.Status.LIVRE)
+
+        return Response({"mensagem": "Mesas separadas com sucesso!"}, status=status.HTTP_200_OK)
+    
 class CozinhaViewSet(viewsets.ModelViewSet):
     queryset = Cozinha.objects.all()
     serializer_class = CozinhaSerializer
