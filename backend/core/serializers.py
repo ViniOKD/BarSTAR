@@ -7,6 +7,7 @@ from .models import (
 from decimal import Decimal
 import phonenumbers
 from django.utils import timezone
+from django.db.models import Q
 import datetime
 from datetime import timedelta
 # Os serializers convertem dados do banco de dados para formato JSON
@@ -43,10 +44,18 @@ class GarcomSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ReservaSerializer(serializers.ModelSerializer):
+    mesas_agrupadas_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Mesa.objects.all(), 
+        many=True, 
+        source='mesas_agrupadas', 
+        required=False
+    )
+
     class Meta:
         model = Reserva
-        fields = ['id', 'cliente_nome', 'cliente_telefone', 'data_reserva', 'hora_reserva']
-
+        fields = ['id', 'mesa','mesas_agrupadas_ids', 'cliente_nome', 'cliente_telefone', 'data_reserva', 'hora_reserva']
+        read_only_fields = ['mesa']
+        
     def validate(self, data):
         # Monta a data e hora informadas em um objeto datetime completo
         data_reserva = data.get('data_reserva')
@@ -97,8 +106,17 @@ class MesaSerializer(serializers.ModelSerializer):
             write_only=True,
         )
 
-    # Traz a lista de reservas ativas para o modal no Front-end exibir
-    reservas = ReservaSerializer(many=True, read_only=True)
+    reservas = serializers.SerializerMethodField()
+
+    def get_reservas(self, obj):
+        # obj é a mesa atual
+        # Busca tanto se ela for a principal QUANTO se for uma das filhas agrupadas
+        reservas = Reserva.objects.filter(
+            Q(mesa=obj) | Q(mesas_agrupadas=obj)
+        ).distinct()
+        
+        return ReservaSerializer(reservas, many=True).data
+    
 
     # Sobrescreve o status para ser calculado dinamicamente
     status_dinamico = serializers.SerializerMethodField()

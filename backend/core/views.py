@@ -352,6 +352,15 @@ class MesaViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        data_reserva_str = request.data.get('data_reserva')
+        hoje_str = timezone.now().date().isoformat()
+
+        if (mesa.status == Mesa.Status.AGRUPADA or mesa.mesa_agrupada is not None) and data_reserva_str == hoje_str:
+            return Response(
+                {"erro": f"A Mesa #{mesa.id} está agrupada à Mesa #{mesa.mesa_agrupada_id}. Faça a reserva diretamente na mesa principal."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
        
         # Passa o ID da mesa no contexto para a validação de conflito
         serializer = ReservaSerializer(data=request.data, context={'mesa_id': mesa.id})

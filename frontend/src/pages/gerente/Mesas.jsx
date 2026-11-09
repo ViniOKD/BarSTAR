@@ -25,7 +25,7 @@ export default function Mesas() {
   const [erroExclusao, setErroExclusao] = useState("");
   const [mesaParaExcluir, setMesaParaExcluir] = useState(null);
 
-  // Controle do Modal de Mesa
+  // Controle do Modal de Mesa (Criar / Editar)
   const [modalMesaAberto, setModalMesaAberto] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [erroFormulario, setErroFormulario] = useState("");
@@ -54,6 +54,13 @@ export default function Mesas() {
     data_reserva: "",
     hora_reserva: ""
   });
+
+  // Juntar / Separar Mesas
+  const [modalJuntarAberto, setModalJuntarAberto] = useState(false);
+  const [mesaPrincipalParaJuntar, setMesaPrincipalParaJuntar] = useState(null);
+  const [mesasSelecionadasParaJuntar, setMesasSelecionadasParaJuntar] = useState([]);
+  const [erroJuntar, setErroJuntar] = useState("");
+  const [carregandoJuntar, setCarregandoJuntar] = useState(false);
 
   const buscarDados = async () => {
     try {
@@ -155,7 +162,8 @@ export default function Mesas() {
       cliente_nome: "",
       cliente_telefone: "",
       data_reserva: new Date().toISOString().split("T")[0],
-      hora_reserva: "19:00"
+      hora_reserva: "19:00",
+      mesas_agrupadas_ids: []
     });
     setModalReservaAberto(true);
   };
@@ -195,7 +203,8 @@ export default function Mesas() {
           cliente_nome: "",
           cliente_telefone: "",
           data_reserva: new Date().toISOString().split("T")[0],
-          hora_reserva: "19:00"
+          hora_reserva: "19:00",
+          mesas_agrupadas_ids: []
         });
         buscarDados();
       } else {
@@ -233,16 +242,13 @@ export default function Mesas() {
         }
       });
 
-      // Se retornou 204 (No Content) ou 200, a exclusão deu certo!
       if (resposta.ok || resposta.status === 204) {
         mostrarSucesso("Reserva cancelada com sucesso!");
-        // 1. Remove IMEDIATAMENTE da modal da agenda que está aberta
         setMesaParaReservar(prevMesa => ({
           ...prevMesa,
           reservas: prevMesa.reservas.filter(res => res.id !== idParaDeletar)
         }));
 
-        // 2. Remove IMEDIATAMENTE da lista geral de mesas por trás do modal
         setMesas(prevMesas => prevMesas.map(mesa => {
           if (mesa.id === mesaParaReservar.id) {
             return {
@@ -263,6 +269,80 @@ export default function Mesas() {
       setErroCancelamentoReserva("Erro de conexão ao tentar cancelar a reserva.");
     } finally {
       setCarregandoCancelamento(false);
+    }
+  };
+
+  // --- LÓGICA DE JUNTAR E SEPARAR MESAS ---
+  const abrirModalJuntar = (mesaPrincipal) => {
+    setMesaPrincipalParaJuntar(mesaPrincipal);
+    setMesasSelecionadasParaJuntar([]);
+    setErroJuntar("");
+    setModalJuntarAberto(true);
+  };
+
+  const toggleSelecaoMesaJuntar = (idMesa) => {
+    if (mesasSelecionadasParaJuntar.includes(idMesa)) {
+      setMesasSelecionadasParaJuntar(mesasSelecionadasParaJuntar.filter(id => id !== idMesa));
+    } else {
+      setMesasSelecionadasParaJuntar([...mesasSelecionadasParaJuntar, idMesa]);
+    }
+  };
+
+  const handleSubmitJuntar = async (e) => {
+    e.preventDefault();
+    if (!mesaPrincipalParaJuntar || mesasSelecionadasParaJuntar.length === 0) {
+      setErroJuntar("Selecione pelo menos uma mesa para agrupar.");
+      return;
+    }
+
+    setCarregandoJuntar(true);
+    setErroJuntar("");
+    const csrftoken = getCookie("csrftoken");
+
+    try {
+      const resposta = await fetch(`/api/mesas/${mesaPrincipalParaJuntar.id}/juntar/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrftoken
+        },
+        body: JSON.stringify({ mesas_ids: mesasSelecionadasParaJuntar })
+      });
+
+      if (resposta.ok) {
+        mostrarSucesso(`Mesas agrupadas à Mesa #${mesaPrincipalParaJuntar.id} com sucesso!`);
+        setModalJuntarAberto(false);
+        buscarDados();
+      } else {
+        const erroJson = await resposta.json().catch(() => ({}));
+        setErroJuntar(erroJson.erro || erroJson.detail || "Erro ao juntar mesas.");
+      }
+    } catch (erro) {
+      setErroJuntar("Erro de conexão ao tentar juntar mesas.");
+    } finally {
+      setCarregandoJuntar(false);
+    }
+  };
+
+  const handleSepararMesas = async (mesaPrincipal) => {
+    const csrftoken = getCookie("csrftoken");
+    try {
+      const resposta = await fetch(`/api/mesas/${mesaPrincipal.id}/separar/`, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": csrftoken
+        }
+      });
+
+      if (resposta.ok) {
+        mostrarSucesso(`Mesas desagrupadas da Mesa #${mesaPrincipal.id} com sucesso!`);
+        buscarDados();
+      } else {
+        const erroJson = await resposta.json().catch(() => ({}));
+        alert(erroJson.erro || erroJson.detail || "Erro ao desagrupar mesas.");
+      }
+    } catch (erro) {
+      alert("Erro de conexão ao tentar separar mesas.");
     }
   };
 
@@ -391,6 +471,7 @@ export default function Mesas() {
       case "OCUPADA": return `${base} bg-red-100 text-red-700`;
       case "RESERVADA": return `${base} bg-blue-100 text-blue-700`;
       case "INATIVA": return `${base} bg-gray-200 text-gray-700`;
+      case "AGRUPADA": return `${base} bg-purple-100 text-purple-700 border border-purple-300`;
       default: return `${base} bg-gray-100 text-gray-800`;
     }
   };
@@ -444,6 +525,7 @@ export default function Mesas() {
             <option value="LIVRE">Livre</option>
             <option value="OCUPADA">Ocupada</option>
             <option value="RESERVADA">Reservada</option>
+            <option value="AGRUPADA">Agrupada</option>
             <option value="INATIVA">Inativa</option>
           </select>
         </div>
@@ -466,20 +548,62 @@ export default function Mesas() {
               {mesasFiltradas.length > 0 ? (
                 mesasFiltradas.map((mesa) => {
                   const statusExibicao = mesa.status_dinamico || mesa.status;
+                  const capacidadeExibicao = mesa.capacidade_total || mesa.capacidade;
                   return (
                     <tr key={mesa.id} className="border-b border-gray-100 hover:bg-[#FFF9E6] transition-colors">
-                      <td className="p-4 font-bold text-header">#{mesa.id}</td>
-                      <td className="p-4 text-gray-600">{mesa.capacidade} lugares</td>
+                      <td className="p-4 font-bold text-header">
+                        #{mesa.id}
+                        {mesa.is_principal && (
+                          <span className="ml-2 text-xs bg-purple-600 text-white font-bold px-2 py-0.5 rounded-full">
+                            Principal
+                          </span>
+                        )}
+                        {mesa.mesa_agrupada && (
+                          <span className="ml-2 text-xs text-purple-700 font-normal">
+                            (🔗 Mesa #{mesa.mesa_agrupada})
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 text-gray-600">
+                        {capacidadeExibicao} lugares
+                        {mesa.is_principal && (
+                          <span className="block text-xs text-purple-600 font-semibold">
+                            (Soma com agrupadas)
+                          </span>
+                        )}
+                      </td>
                       <td className="p-4 text-gray-600">{mesa.garcom?.nome || "-"}</td>
                       <td className="p-4">
                         <span className={`${getEstiloStatus(statusExibicao)}`}>
                           {statusExibicao}
                         </span>
                       </td>
-                      <td className="p-4 flex justify-center gap-3">
+                      <td className="p-4 flex justify-center gap-2 items-center">
+                        {/* Botão Juntar Mesas (Apenas se a mesa estiver LIVRE) */}
+                        {statusExibicao === "LIVRE" && (
+                          <button
+                            onClick={() => abrirModalJuntar(mesa)}
+                            className="bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold px-2.5 py-1 rounded text-xs transition-colors cursor-pointer flex items-center gap-1"
+                            title="Juntar Mesas"
+                          >
+                            🔗 Juntar
+                          </button>
+                        )}
+
+                        {/* Botão Separar Mesas (Apenas para a Mesa Principal do grupo) */}
+                        {mesa.is_principal && (
+                          <button
+                            onClick={() => handleSepararMesas(mesa)}
+                            className="bg-red-100 hover:bg-red-200 text-red-700 font-bold px-2.5 py-1 rounded text-xs transition-colors cursor-pointer flex items-center gap-1"
+                            title="Desagrupar Mesas"
+                          >
+                            ✂️ Separar
+                          </button>
+                        )}
+
                         <button
                           onClick={() => abrirModalReserva(mesa)}
-                          className="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer"
+                          className="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer ml-1"
                           title="Agenda de Reservas"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 inline">
@@ -533,7 +657,83 @@ export default function Mesas() {
         </div>
       )}
 
-      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE MESA (z-[60] para sobrepor) */}
+      {/* MODAL JUNTAR MESAS */}
+      {modalJuntarAberto && mesaPrincipalParaJuntar && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl relative p-6">
+            <button
+              onClick={() => setModalJuntarAberto(false)}
+              className="absolute top-4 right-6 text-gray-400 hover:text-gray-700 font-bold text-3xl cursor-pointer"
+            >
+              ×
+            </button>
+
+            <h2 className="text-2xl font-bold mb-1 text-gray-800 font-header">
+              Juntar à Mesa #{mesaPrincipalParaJuntar.id}
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Selecione as mesas livres que serão agrupadas a esta mesa principal.
+            </p>
+
+            {erroJuntar && (
+              <div className="mb-4 rounded-md bg-red-100 border border-red-200 p-3 text-sm text-red-700 font-medium">
+                🚨 {erroJuntar}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitJuntar}>
+              <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-2 mb-4 flex flex-col gap-2">
+                {mesas.filter(m => m.id !== mesaPrincipalParaJuntar.id && (m.status_dinamico || m.status) === "LIVRE").length > 0 ? (
+                  mesas
+                    .filter(m => m.id !== mesaPrincipalParaJuntar.id && (m.status_dinamico || m.status) === "LIVRE")
+                    .map(m => (
+                      <label
+                        key={m.id}
+                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                          mesasSelecionadasParaJuntar.includes(m.id)
+                            ? "bg-purple-50 border-purple-300"
+                            : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={mesasSelecionadasParaJuntar.includes(m.id)}
+                            onChange={() => toggleSelecaoMesaJuntar(m.id)}
+                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
+                          />
+                          <span className="font-bold text-gray-800">Mesa #{m.id}</span>
+                        </div>
+                        <span className="text-xs text-gray-500 font-medium">{m.capacidade} lugares</span>
+                      </label>
+                    ))
+                ) : (
+                  <p className="p-4 text-center text-sm text-gray-500">Nenhuma outra mesa LIVRE disponível no momento.</p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setModalJuntarAberto(false)}
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md font-bold text-sm border border-gray-300 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={carregandoJuntar || mesasSelecionadasParaJuntar.length === 0}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-bold text-sm transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {carregandoJuntar ? "Agrupando..." : "Confirmar Junção"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE MESA */}
       {mesaParaExcluir && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
           <div className="bg-destaque p-8 rounded-xl w-full max-w-md shadow-2xl text-center border-t-4 border-red-500">
@@ -566,7 +766,7 @@ export default function Mesas() {
         </div>
       )}
 
-      {/* MODAL DE CONFIRMAÇÃO DE CANCELAMENTO DE RESERVA (z-[60] garante que fica na frente do Modal da Agenda) */}
+      {/* MODAL DE CONFIRMAÇÃO DE CANCELAMENTO DE RESERVA */}
       {reservaParaCancelar && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
           <div className="bg-white p-6 rounded-xl w-full max-w-sm shadow-2xl text-center border-t-4 border-red-500 relative">
@@ -667,6 +867,7 @@ export default function Mesas() {
                   {editandoId && (
                     <option value="RESERVADA">Reservada (Ir para formulário de reserva)</option>
                   )}
+                  <option value="AGRUPADA">Agrupada</option>
                   <option value="INATIVA">Inativa</option>
                 </select>
               </div>
@@ -691,7 +892,7 @@ export default function Mesas() {
         </div>
       )}
 
-      {/* MODAL DE AGENDA DE RESERVAS (z-50) */}
+      {/* MODAL DE AGENDA DE RESERVAS */}
       {modalReservaAberto && mesaParaReservar && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-destaque rounded-2xl w-full max-w-lg shadow-2xl relative p-6 max-h-[90vh] overflow-y-auto">
@@ -709,7 +910,6 @@ export default function Mesas() {
               Capacidade: <strong>{mesaParaReservar.capacidade} lugares</strong>
             </p>
 
-            {/* SEÇÃO 1: RESERVAS JÁ AGENDADAS */}
             <div className="mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
               <h3 className="text-xs font-bold text-header mb-3 uppercase tracking-wide">
                 Reservas Agendadas
@@ -717,29 +917,54 @@ export default function Mesas() {
 
               {mesaParaReservar.reservas && mesaParaReservar.reservas.length > 0 ? (
                 <div className="flex flex-col gap-2">
-                  {mesaParaReservar.reservas.map((res) => (
-                    <div key={res.id || `${res.cliente_nome}-${res.data_reserva}`} className="flex justify-between items-center p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm">
-                      <div>
-                        <p className="font-bold text-blue-900">{res.cliente_nome}</p>
-                        <p className="text-xs text-blue-700">
-                          📅 {res.data_reserva} às ⏰ {res.hora_reserva} {res.cliente_telefone && `• 📞 ${res.cliente_telefone}`}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => solicitarCancelamentoReserva(res)}
-                        className="text-red-500 hover:text-red-700 text-xs font-bold underline cursor-pointer"
+                  {mesaParaReservar.reservas.map((res) => {
+                    // Verifica se a reserva possui mesas agrupadas vinculadas
+                    const temMesasAgrupadas = res.mesas_agrupadas_ids && res.mesas_agrupadas_ids.length > 0;
+                    
+                    return (
+                      <div 
+                        key={res.id || `${res.cliente_nome}-${res.data_reserva}`} 
+                        className={`flex justify-between items-center p-3 rounded-lg text-sm border ${
+                          temMesasAgrupadas 
+                            ? "bg-purple-50 border-purple-200" 
+                            : "bg-blue-50 border-blue-100"
+                        }`}
                       >
-                        Cancelar
-                      </button>
-                    </div>
-                  ))}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className={`font-bold ${temMesasAgrupadas ? "text-purple-900" : "text-blue-900"}`}>
+                              {res.cliente_nome}
+                            </p>
+                            {temMesasAgrupadas && (
+                              <span className="bg-purple-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                Reserva de Grupo
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-xs ${temMesasAgrupadas ? "text-purple-700" : "text-blue-700"} mt-0.5`}>
+                            📅 {res.data_reserva} às ⏰ {res.hora_reserva} {res.cliente_telefone && `• 📞 ${res.cliente_telefone}`}
+                          </p>
+                          {/* Exibe o grupo de mesas se houver junção na reserva */}
+                          {temMesasAgrupadas && (
+                            <p className="text-xs font-semibold text-purple-800 mt-1">
+                              🔗 Mesas Agrupadas: #{res.mesa} e #{res.mesas_agrupadas_ids.join(", #")}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => solicitarCancelamentoReserva(res)}
+                          className="text-red-500 hover:text-red-700 text-xs font-bold underline cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-xs text-gray-500">Nenhuma reserva futura agendada para esta mesa.</p>
               )}
             </div>
-
-            {/* SEÇÃO 2: FORMULÁRIO DE NOVA RESERVA */}
             <h3 className="text-xs font-bold text-header mb-2 uppercase tracking-wide">
               + Adicionar Nova Reserva
             </h3>
@@ -800,7 +1025,47 @@ export default function Mesas() {
                   />
                 </div>
               </div>
-
+              {/* SELEÇÃO DE MESAS PARA AGRUPAR */}
+              <div className="mb-4">
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Agrupar com outras mesas (Opcional)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {mesas
+                    .filter((m) => m.id !== mesaParaReservar.id && m.status !== "INATIVA")
+                    .map((m) => (
+                      <label
+                        key={m.id}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-full border text-sm cursor-pointer transition-colors ${
+                          formDataReserva.mesas_agrupadas_ids?.includes(m.id)
+                            ? "bg-purple-100 border-purple-500 text-purple-900 font-semibold"
+                            : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          value={m.id}
+                          checked={formDataReserva.mesas_agrupadas_ids?.includes(m.id) || false}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            setFormDataReserva((prev) => {
+                              const atuais = prev.mesas_agrupadas_ids || [];
+                              const novosIds = isChecked
+                                ? [...atuais, m.id]
+                                : atuais.filter((id) => id !== m.id);
+                              return { ...prev, mesas_agrupadas_ids: novosIds };
+                            });
+                          }}
+                        />
+                        Mesa #{m.id}
+                      </label>
+                    ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Selecione as mesas que farão parte desta mesma reserva.
+                </p>
+              </div>
               <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-header/10">
                 <button
                   type="button"

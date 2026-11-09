@@ -138,6 +138,8 @@ class Mesa(models.Model):
 
 class Reserva(models.Model):
     mesa = models.ForeignKey('Mesa', on_delete=models.CASCADE, related_name='reservas')
+    mesas_agrupadas = models.ManyToManyField(Mesa, blank=True, related_name='reservas_agrupadas')
+    
     cliente_nome = models.CharField(max_length=150)
     cliente_telefone = models.CharField(max_length=20, blank=True, null=True)
     data_reserva = models.DateField()
