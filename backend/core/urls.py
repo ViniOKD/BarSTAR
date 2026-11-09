@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    health, PedidoViewSet, CategoriaViewSet, GerenteViewSet, GarcomViewSet,
+    ReservaViewSet, health, PedidoViewSet, CategoriaViewSet, GerenteViewSet, GarcomViewSet,
     MesaViewSet, CozinhaViewSet, ItemViewSet, ItensPedidoViewSet, AbrirComandaView,
     ItensPromocaoViewSet, PromocaoViewSet,ConsultarComandaView, EnviarPedidoView, LoginView, LogoutView)
 
@@ -16,6 +16,7 @@ router.register(r'itens', ItemViewSet, basename='item')
 router.register(r'itens-pedido', ItensPedidoViewSet, basename='itens-pedido')
 router.register(r'itens-promocao', ItensPromocaoViewSet, basename='itens-promocao')
 router.register(r'promocoes', PromocaoViewSet, basename='promocao')
+router.register(r'reservas', ReservaViewSet, basename='reserva')
 
 
 urlpatterns = [

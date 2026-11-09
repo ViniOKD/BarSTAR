@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 
-// Função nativa para capturar o token CSRF dos cookies do navegador
 function getCookie(name) {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
@@ -26,7 +25,7 @@ export default function Mesas() {
   const [erroExclusao, setErroExclusao] = useState("");
   const [mesaParaExcluir, setMesaParaExcluir] = useState(null);
 
-  // Controle do Modal e Edição
+  // Controle do Modal de Mesa
   const [modalMesaAberto, setModalMesaAberto] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [erroFormulario, setErroFormulario] = useState("");
@@ -42,9 +41,13 @@ export default function Mesas() {
 
   const [formDataMesa, setFormDataMesa] = useState(estadoInicialMesa);
 
-  // Reserva de Mesas
+  // Agenda / Reserva de Mesas
   const [modalReservaAberto, setModalReservaAberto] = useState(false);
   const [mesaParaReservar, setMesaParaReservar] = useState(null);
+  const [reservaParaCancelar, setReservaParaCancelar] = useState(null);
+  const [erroCancelamentoReserva, setErroCancelamentoReserva] = useState("");
+  const [carregandoCancelamento, setCarregandoCancelamento] = useState(false);
+
   const [formDataReserva, setFormDataReserva] = useState({
     cliente_nome: "",
     cliente_telefone: "",
@@ -64,8 +67,18 @@ export default function Mesas() {
         const dadosMesas = await respostaMesas.json();
         const dadosGarcons = await respostaGarcons.json();
 
-        setMesas(dadosMesas.results ? dadosMesas.results : dadosMesas);
-        setGarcons(dadosGarcons.results ? dadosGarcons.results : dadosGarcons);
+        const listaMesas = dadosMesas.results ? dadosMesas.results : dadosMesas;
+        const listaGarcons = dadosGarcons.results ? dadosGarcons.results : dadosGarcons;
+
+        setMesas(listaMesas);
+        setGarcons(listaGarcons);
+
+        if (mesaParaReservar) {
+          const mesaAtualizada = listaMesas.find((m) => m.id === mesaParaReservar.id);
+          if (mesaAtualizada) {
+            setMesaParaReservar(mesaAtualizada);
+          }
+        }
       } else {
         let erros = [];
         if (!respostaMesas.ok) erros.push(`Mesas (${respostaMesas.status})`);
@@ -94,9 +107,6 @@ export default function Mesas() {
   const handleChangeMesa = (e) => {
     const { name, value } = e.target;
 
-    // REGRA DE REDIRECIONAMENTO:
-    // Se o gerente tentar alterar o status para RESERVADA pelo modal de edição comum,
-    // fechamos o modal de edição e abrimos o modal específico de Reserva!
     if (name === "status" && value === "RESERVADA") {
       const mesaAtual = mesas.find((m) => m.id === editandoId) || { id: editandoId, capacidade: formDataMesa.capacidade };
       setModalMesaAberto(false);
@@ -128,8 +138,17 @@ export default function Mesas() {
     setModalMesaAberto(true);
   };
 
-  // Funções do Modal de Reserva
   const abrirModalReserva = (mesa) => {
+    if (!mesa || !mesa.id) {
+      setErroFormulario("Crie a mesa primeiro antes de efetuar uma reserva.");
+      return;
+    }
+    
+    if (mesa.status === "INATIVA") {
+      setErroFormulario(`A Mesa #${mesa.id} está INATIVA. Ative a mesa antes de efetuar reservas.`);
+      return;
+    }
+
     setMesaParaReservar(mesa);
     setErroFormulario("");
     setFormDataReserva({
@@ -171,8 +190,13 @@ export default function Mesas() {
       });
 
       if (resposta.ok) {
-        mostrarSucesso(`Mesa #${mesaParaReservar.id} reservada para ${formDataReserva.cliente_nome}!`);
-        setModalReservaAberto(false);
+        mostrarSucesso(`Reserva agendada para ${formDataReserva.cliente_nome}!`);
+        setFormDataReserva({
+          cliente_nome: "",
+          cliente_telefone: "",
+          data_reserva: new Date().toISOString().split("T")[0],
+          hora_reserva: "19:00"
+        });
         buscarDados();
       } else {
         const erros = await resposta.json().catch(() => ({}));
@@ -180,6 +204,65 @@ export default function Mesas() {
       }
     } catch (erro) {
       setErroFormulario("Erro de conexão ao tentar reservar.");
+    }
+  };
+
+  const solicitarCancelamentoReserva = (reserva) => {
+    setErroCancelamentoReserva("");
+    setReservaParaCancelar(reserva);
+  };
+
+  const confirmarCancelamentoReserva = async () => {
+    if (!reservaParaCancelar || carregandoCancelamento) return;
+    
+    const idParaDeletar = reservaParaCancelar.id;
+    if (!idParaDeletar) {
+      setErroCancelamentoReserva("ID da reserva é inválido.");
+      return;
+    }
+
+    setCarregandoCancelamento(true);
+    setErroCancelamentoReserva("");
+    const csrftoken = getCookie("csrftoken");
+
+    try {
+      const resposta = await fetch(`/api/reservas/${idParaDeletar}/`, {
+        method: "DELETE",
+        headers: {
+          "X-CSRFToken": csrftoken
+        }
+      });
+
+      // Se retornou 204 (No Content) ou 200, a exclusão deu certo!
+      if (resposta.ok || resposta.status === 204) {
+        mostrarSucesso("Reserva cancelada com sucesso!");
+        // 1. Remove IMEDIATAMENTE da modal da agenda que está aberta
+        setMesaParaReservar(prevMesa => ({
+          ...prevMesa,
+          reservas: prevMesa.reservas.filter(res => res.id !== idParaDeletar)
+        }));
+
+        // 2. Remove IMEDIATAMENTE da lista geral de mesas por trás do modal
+        setMesas(prevMesas => prevMesas.map(mesa => {
+          if (mesa.id === mesaParaReservar.id) {
+            return {
+              ...mesa,
+              reservas: mesa.reservas.filter(res => res.id !== idParaDeletar)
+            };
+          }
+          return mesa;
+        }));
+
+        setReservaParaCancelar(null);
+        buscarDados();
+      } else {
+        const erroJson = await resposta.json().catch(() => ({}));
+        setErroCancelamentoReserva(erroJson.erro || erroJson.detail || "Erro ao cancelar no servidor.");
+      }
+    } catch (erro) {
+      setErroCancelamentoReserva("Erro de conexão ao tentar cancelar a reserva.");
+    } finally {
+      setCarregandoCancelamento(false);
     }
   };
 
@@ -282,9 +365,7 @@ export default function Mesas() {
         } else if (erroJson && erroJson.detail) {
           setErroExclusao(erroJson.detail);
         } else if (resposta.status === 500) {
-          setErroExclusao(
-            "Erro 500 (Servidor): Ocorreu um erro interno no servidor ao tentar excluir."
-          );
+          setErroExclusao("Erro 500: Ocorreu um erro interno no servidor ao tentar excluir.");
         } else {
           setErroExclusao(`Erro ${resposta.status}: Ocorreu um problema ao tentar excluir.`);
         }
@@ -295,14 +376,14 @@ export default function Mesas() {
   };
 
   const mesasFiltradas = mesas.filter((mesa) => {
-    const matchStatus = filtroStatus === "todos" || mesa.status === filtroStatus;
+    const statusReal = mesa.status_dinamico || mesa.status;
+    const matchStatus = filtroStatus === "todos" || statusReal === filtroStatus;
     const nomeGarcom = mesa.garcom?.nome || "";
     const matchGarcom = nomeGarcom.toLowerCase().includes(filtroGarcomNome.toLowerCase());
 
     return matchStatus && matchGarcom;
   });
 
-  // BADGES QUADRADAS E ARREDONDADAS IGUAL AS CATEGORIAS
   const getEstiloStatus = (status) => {
     const base = "px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wide inline-block";
     switch (status) {
@@ -333,7 +414,6 @@ export default function Mesas() {
         </button>
       </div>
 
-      {/* AVISO DE ERRO DE CONEXÃO COM API */}
       {erroApi && (
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
           <p className="font-bold">Aviso de Comunicação API:</p>
@@ -369,7 +449,7 @@ export default function Mesas() {
         </div>
       </div>
 
-      {/* TABELA DE MESAS COM HOVER AMARELINHO */}
+      {/* TABELA DE MESAS */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -384,54 +464,52 @@ export default function Mesas() {
             </thead>
             <tbody>
               {mesasFiltradas.length > 0 ? (
-                mesasFiltradas.map((mesa) => (
-                  <tr key={mesa.id} className="border-b border-gray-100 hover:bg-[#FFF9E6] transition-colors">
-                    <td className="p-4 font-bold text-header">#{mesa.id}</td>
-                    <td className="p-4 text-gray-600">{mesa.capacidade} lugares</td>
-                    <td className="p-4 text-gray-600">{mesa.garcom?.nome || "-"}</td>
-                    <td className="p-4">
-                      <span className={`${getEstiloStatus(mesa.status)}`}>
-                        {mesa.status}
-                      </span>
-                    </td>
-                    <td className="p-4 flex justify-center gap-3">
-                      {/* BOTÃO RESERVAR (Disponível para mesas Livres) */}
-                      {mesa.status === "LIVRE" && (
+                mesasFiltradas.map((mesa) => {
+                  const statusExibicao = mesa.status_dinamico || mesa.status;
+                  return (
+                    <tr key={mesa.id} className="border-b border-gray-100 hover:bg-[#FFF9E6] transition-colors">
+                      <td className="p-4 font-bold text-header">#{mesa.id}</td>
+                      <td className="p-4 text-gray-600">{mesa.capacidade} lugares</td>
+                      <td className="p-4 text-gray-600">{mesa.garcom?.nome || "-"}</td>
+                      <td className="p-4">
+                        <span className={`${getEstiloStatus(statusExibicao)}`}>
+                          {statusExibicao}
+                        </span>
+                      </td>
+                      <td className="p-4 flex justify-center gap-3">
                         <button
                           onClick={() => abrirModalReserva(mesa)}
                           className="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer"
-                          title="Reservar Mesa"
+                          title="Agenda de Reservas"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 inline">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                           </svg>
                         </button>
-                      )}
 
-                      {/* BOTÃO EDITAR */}
-                      <button 
-                        onClick={() => abrirModalEdicao(mesa)}
-                        className="text-gray-400 hover:text-emerald-600 transition-colors cursor-pointer"
-                        title="Editar"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 inline">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
-                        </svg>
-                      </button>
+                        <button 
+                          onClick={() => abrirModalEdicao(mesa)}
+                          className="text-gray-400 hover:text-emerald-600 transition-colors cursor-pointer"
+                          title="Editar"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 inline">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                          </svg>
+                        </button>
 
-                      {/* BOTÃO EXCLUIR */}
-                      <button 
-                        onClick={() => confirmarExclusao(mesa)}
-                        className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
-                        title="Excluir"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 inline">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                        <button 
+                          onClick={() => confirmarExclusao(mesa)}
+                          className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+                          title="Excluir"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 inline">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan="5" className="p-6 text-center text-gray-500">
@@ -455,9 +533,9 @@ export default function Mesas() {
         </div>
       )}
 
-      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE MESA (z-[60] para sobrepor) */}
       {mesaParaExcluir && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
           <div className="bg-destaque p-8 rounded-xl w-full max-w-md shadow-2xl text-center border-t-4 border-red-500">
             <h3 className="text-2xl font-bold text-header mb-3 font-header">Remover Mesa?</h3>
             <p className="text-header/80 mb-6">
@@ -482,6 +560,41 @@ export default function Mesas() {
                 className="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-md font-bold transition-colors cursor-pointer"
               >
                 Sim, Remover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE CANCELAMENTO DE RESERVA (z-[60] garante que fica na frente do Modal da Agenda) */}
+      {reservaParaCancelar && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white p-6 rounded-xl w-full max-w-sm shadow-2xl text-center border-t-4 border-red-500 relative">
+            <h3 className="text-xl font-bold text-gray-800 mb-2">Cancelar Reserva?</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              Deseja remover a reserva de <strong>{reservaParaCancelar.cliente_nome}</strong> agendada para <strong>{reservaParaCancelar.data_reserva}</strong> às <strong>{reservaParaCancelar.hora_reserva}</strong>?
+            </p>
+
+            {erroCancelamentoReserva && (
+              <div className="mb-4 rounded-md bg-red-100 border border-red-200 p-2.5 text-xs text-red-700 font-medium">
+                {erroCancelamentoReserva}
+              </div>
+            )}
+
+            <div className="flex justify-center gap-3">
+              <button
+                disabled={carregandoCancelamento}
+                onClick={() => setReservaParaCancelar(null)}
+                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md font-bold text-sm border border-gray-300 cursor-pointer hover:bg-gray-200"
+              >
+                Manter Reserva
+              </button>
+              <button
+                disabled={carregandoCancelamento}
+                onClick={confirmarCancelamentoReserva}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-bold text-sm transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {carregandoCancelamento ? "Cancelando..." : "Sim, Cancelar"}
               </button>
             </div>
           </div>
@@ -542,7 +655,7 @@ export default function Mesas() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold mb-2 text-header">Status Inicial</label>
+                <label className="block text-sm font-bold mb-2 text-header">Status Físico Atual</label>
                 <select
                   name="status"
                   value={formDataMesa.status}
@@ -551,7 +664,9 @@ export default function Mesas() {
                 >
                   <option value="LIVRE">Livre</option>
                   <option value="OCUPADA">Ocupada</option>
-                  <option value="RESERVADA">Reservada (Redireciona para Reserva)</option>
+                  {editandoId && (
+                    <option value="RESERVADA">Reservada (Ir para formulário de reserva)</option>
+                  )}
                   <option value="INATIVA">Inativa</option>
                 </select>
               </div>
@@ -576,10 +691,10 @@ export default function Mesas() {
         </div>
       )}
 
-      {/* MODAL DE RESERVAR MESA */}
+      {/* MODAL DE AGENDA DE RESERVAS (z-50) */}
       {modalReservaAberto && mesaParaReservar && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-destaque rounded-2xl w-full max-w-md shadow-2xl relative p-6">
+          <div className="bg-destaque rounded-2xl w-full max-w-lg shadow-2xl relative p-6 max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setModalReservaAberto(false)}
               className="absolute top-4 right-6 text-header/50 hover:text-header font-bold text-3xl cursor-pointer"
@@ -587,22 +702,57 @@ export default function Mesas() {
               ×
             </button>
 
-            <h2 className="text-2xl font-bold mb-2 text-header font-header">
-              Reservar Mesa #{mesaParaReservar.id}
+            <h2 className="text-2xl font-bold mb-1 text-header font-header">
+              Agenda da Mesa #{mesaParaReservar.id}
             </h2>
-            <p className="text-sm text-gray-500 mb-6">
-              Capacidade da Mesa: <strong>{mesaParaReservar.capacidade} lugares</strong>
+            <p className="text-sm text-gray-500 mb-4">
+              Capacidade: <strong>{mesaParaReservar.capacidade} lugares</strong>
             </p>
+
+            {/* SEÇÃO 1: RESERVAS JÁ AGENDADAS */}
+            <div className="mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+              <h3 className="text-xs font-bold text-header mb-3 uppercase tracking-wide">
+                Reservas Agendadas
+              </h3>
+
+              {mesaParaReservar.reservas && mesaParaReservar.reservas.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {mesaParaReservar.reservas.map((res) => (
+                    <div key={res.id || `${res.cliente_nome}-${res.data_reserva}`} className="flex justify-between items-center p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm">
+                      <div>
+                        <p className="font-bold text-blue-900">{res.cliente_nome}</p>
+                        <p className="text-xs text-blue-700">
+                          📅 {res.data_reserva} às ⏰ {res.hora_reserva} {res.cliente_telefone && `• 📞 ${res.cliente_telefone}`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => solicitarCancelamentoReserva(res)}
+                        className="text-red-500 hover:text-red-700 text-xs font-bold underline cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">Nenhuma reserva futura agendada para esta mesa.</p>
+              )}
+            </div>
+
+            {/* SEÇÃO 2: FORMULÁRIO DE NOVA RESERVA */}
+            <h3 className="text-xs font-bold text-header mb-2 uppercase tracking-wide">
+              + Adicionar Nova Reserva
+            </h3>
 
             {erroFormulario && (
               <div className="mb-4 rounded-md bg-red-100 border border-red-200 p-3 text-sm text-red-700 font-medium">
-                {erroFormulario}
+                🚨 {erroFormulario}
               </div>
             )}
 
-            <form onSubmit={handleSubmitReserva} className="flex flex-col gap-4">
+            <form onSubmit={handleSubmitReserva} className="flex flex-col gap-3">
               <div>
-                <label className="block text-sm font-bold mb-2 text-header">Nome do Cliente</label>
+                <label className="block text-xs font-bold mb-1 text-header">Nome do Cliente *</label>
                 <input
                   required
                   type="text"
@@ -610,60 +760,60 @@ export default function Mesas() {
                   placeholder="Ex: Maria Silva"
                   value={formDataReserva.cliente_nome}
                   onChange={handleChangeReserva}
-                  className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover bg-white text-header"
+                  className="w-full border border-gray-300 p-2.5 rounded-md focus:outline-none focus:border-hover bg-white text-header text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold mb-2 text-header">Telefone / WhatsApp</label>
+                <label className="block text-xs font-bold mb-1 text-header">Telefone / WhatsApp</label>
                 <input
                   type="text"
                   name="cliente_telefone"
                   placeholder="(00) 00000-0000"
                   value={formDataReserva.cliente_telefone}
                   onChange={handleChangeReserva}
-                  className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover bg-white text-header"
+                  className="w-full border border-gray-300 p-2.5 rounded-md focus:outline-none focus:border-hover bg-white text-header text-sm"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-bold mb-2 text-header">Data</label>
+                  <label className="block text-xs font-bold mb-1 text-header">Data *</label>
                   <input
                     required
                     type="date"
                     name="data_reserva"
                     value={formDataReserva.data_reserva}
                     onChange={handleChangeReserva}
-                    className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover bg-white text-header"
+                    className="w-full border border-gray-300 p-2.5 rounded-md focus:outline-none focus:border-hover bg-white text-header text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold mb-2 text-header">Horário</label>
+                  <label className="block text-xs font-bold mb-1 text-header">Horário *</label>
                   <input
                     required
                     type="time"
                     name="hora_reserva"
                     value={formDataReserva.hora_reserva}
                     onChange={handleChangeReserva}
-                    className="w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover bg-white text-header"
+                    className="w-full border border-gray-300 p-2.5 rounded-md focus:outline-none focus:border-hover bg-white text-header text-sm"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-4 mt-4 pt-4 border-t border-header/10">
+              <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-header/10">
                 <button
                   type="button"
                   onClick={() => setModalReservaAberto(false)}
-                  className="bg-white text-header px-5 py-2.5 rounded-md font-bold border border-gray-300 cursor-pointer"
+                  className="bg-white text-header px-4 py-2 rounded-md font-bold text-sm border border-gray-300 cursor-pointer"
                 >
-                  Cancelar
+                  Fechar
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-md font-bold transition-colors shadow-sm cursor-pointer"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-bold text-sm transition-colors cursor-pointer"
                 >
-                  Confirmar Reserva
+                  Salvar Reserva
                 </button>
               </div>
             </form>

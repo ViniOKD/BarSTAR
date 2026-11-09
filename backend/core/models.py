@@ -1,6 +1,7 @@
 from django.db import models
 from django.db.models import CheckConstraint, Q, UniqueConstraint
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.utils import timezone
 # Create your models here.
 
 class GerenteManager(BaseUserManager):
@@ -83,6 +84,7 @@ class Mesa(models.Model):
         OCUPADA = 'OCUPADA', 'Ocupada'
         RESERVADA = 'RESERVADA', 'Reservada'
         INATIVA = 'INATIVA', 'Inativa'
+        AGRUPADA = 'AGRUPADA', 'Agrupada'
 
     id = models.BigAutoField(primary_key=True)  # id_mesa
     capacidade = models.PositiveIntegerField()
@@ -123,7 +125,29 @@ class Mesa(models.Model):
     def __str__(self):
         return f'Mesa {self.id} ({self.capacidade} lugares - {self.get_status_display()})'
 
+    @property
+    def capacidade_total(self):
+        # Soma a capacidade desta mesa com a de todas as mesas filhas
+        capacidade_filhas = sum(m.capacidade for m in self.mesas_agrupadas.all())
+        return self.capacidade + capacidade_filhas
 
+    @property
+    def is_principal(self):
+        # Retorna True se existirem mesas agrupadas a ela
+        return self.mesas_agrupadas.exists()
+
+class Reserva(models.Model):
+    mesa = models.ForeignKey('Mesa', on_delete=models.CASCADE, related_name='reservas')
+    cliente_nome = models.CharField(max_length=150)
+    cliente_telefone = models.CharField(max_length=20, blank=True, null=True)
+    data_reserva = models.DateField()
+    hora_reserva = models.TimeField()
+    criado_em = models.DateTimeField(auto_now_add=True)
+    ativa = models.BooleanField(default=True) 
+
+    def __str__(self):
+        return f"Reserva de {self.cliente_nome} - Mesa {self.mesa.id}"
+    
 class Cozinha(models.Model):
     id = models.BigAutoField(primary_key=True)  # id_cozinha
     nome = models.CharField(max_length=50, default='Principal')

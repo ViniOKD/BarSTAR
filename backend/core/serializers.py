@@ -2,11 +2,13 @@ import re
 from rest_framework import serializers
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda
+    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Reserva
 )
 from decimal import Decimal
 import phonenumbers
-
+from django.utils import timezone
+import datetime
+from datetime import timedelta
 # Os serializers convertem dados do banco de dados para formato JSON
 
 
@@ -40,6 +42,48 @@ class GarcomSerializer(serializers.ModelSerializer):
         model = Garcom
         fields = '__all__'
 
+class ReservaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Reserva
+        fields = ['id', 'cliente_nome', 'cliente_telefone', 'data_reserva', 'hora_reserva']
+
+    def validate(self, data):
+        # Monta a data e hora informadas em um objeto datetime completo
+        data_reserva = data.get('data_reserva')
+        hora_reserva = data.get('hora_reserva')
+        
+        if data_reserva and hora_reserva:
+            # Junta data e hora
+            data_hora_informada = datetime.datetime.combine(data_reserva, hora_reserva)
+            # Torna a data "aware" (ciente do fuso horário configurado no Django)
+            data_hora_informada = timezone.make_aware(data_hora_informada)
+            
+            # Pega o momento atual
+            agora = timezone.now()
+
+            # Validação: A data/hora da reserva não pode ser no passado
+            if data_hora_informada < agora:
+                raise serializers.ValidationError({"erro": "A data e horário da reserva não podem ser no passado."})
+
+
+            # Pega a mesa do contexto ou da requisição
+            mesa_id = self.context.get('mesa_id')
+            if mesa_id:
+                # Verifica se já existe reserva para esta mesma mesa no mesmo dia
+                conflito = Reserva.objects.filter(
+                    mesa_id=mesa_id,
+                    ativa=True,
+                    data_reserva=data_reserva
+                ).exists()
+
+                if conflito:
+                    raise serializers.ValidationError({
+                        "erro": "Esta mesa já possui uma reserva agendada para este dia."
+                    })
+
+        return data
+    
+
 class MesaSerializer(serializers.ModelSerializer):
     garcom = GarcomSerializer(read_only=True)
     garcom_id = serializers.PrimaryKeyRelatedField(
@@ -52,11 +96,44 @@ class MesaSerializer(serializers.ModelSerializer):
             source="gerente",
             write_only=True,
         )
+
+    # Traz a lista de reservas ativas para o modal no Front-end exibir
+    reservas = ReservaSerializer(many=True, read_only=True)
+
+    # Sobrescreve o status para ser calculado dinamicamente
+    status_dinamico = serializers.SerializerMethodField()
+
+    # Campos calculados como somente leitura
+    capacidade_total = serializers.ReadOnlyField()
+    is_principal = serializers.ReadOnlyField()
     
     class Meta:
         model = Mesa
         fields = '__all__'
         read_only_fields = ['gerente', 'gerente_id']
+
+    def get_status_dinamico(self, obj):
+        # Se a mesa estiver Inativa ou Ocupada fisicamente agora, mantém
+        if obj.status in ['INATIVA', 'OCUPADA']:
+            return obj.status
+
+        hoje = timezone.now().date()
+        agora = timezone.now()
+
+        # Verifica se existe alguma reserva ativa para HOJE nesta mesa
+        reserva_hoje = obj.reservas.filter(ativa=True, data_reserva=hoje).first()
+
+        if reserva_hoje:
+            data_hora_reserva = timezone.make_aware(
+                datetime.datetime.combine(reserva_hoje.data_reserva, reserva_hoje.hora_reserva)
+            )
+            # Define a janela do dia: se estiver no dia da reserva (a partir de 2h antes até o horário)
+            janela_bloqueio = data_hora_reserva - datetime.timedelta(hours=2)
+            
+            if janela_bloqueio <= agora <= (data_hora_reserva + datetime.timedelta(hours=2)):
+                return 'RESERVADA'
+
+        return 'LIVRE'
 
 class CozinhaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -129,6 +206,10 @@ class PedidoSerializer(serializers.ModelSerializer):
 class AbrirComandaSerializer(serializers.Serializer):
     cpf = serializers.CharField(max_length=14)
     telefone = serializers.CharField(max_length=15)
+    mesa_id = serializers.PrimaryKeyRelatedField(
+        queryset=Mesa.objects.all(),
+        source="mesa"
+    )
 
     # Validação do CPF
     def validate_cpf(self, value):
@@ -161,6 +242,36 @@ class AbrirComandaSerializer(serializers.Serializer):
             raise serializers.ValidationError("O número de telefone informado é inválido. Inclua o DDD.")
         return tel_numeros
 
+    # Valicao da reserva e do horario 
+    def validate(self, attrs):
+        mesa = attrs.get('mesa')
+
+        # Só valida se a mesa estiver com status RESERVADA
+        if mesa and mesa.status == 'RESERVADA':
+            hoje = timezone.now().date()
+            agora = timezone.now()
+
+            # Busca a reserva ativa programada para hoje nesta mesa
+            reserva = mesa.reservas.filter(ativa=True, data_reserva=hoje).order_by('hora_reserva').first()
+
+            if reserva:
+                # Junta data e hora da reserva em um datetime ciente do fuso horário
+                data_hora_reserva = timezone.make_aware(
+                    datetime.datetime.combine(reserva.data_reserva, reserva.hora_reserva)
+                )
+
+                # Tolerância: Permite abrir comanda até 30 minutos antes da reserva
+                horario_permitido = data_hora_reserva - datetime.timedelta(minutes=30)
+
+                # Bloqueio caso ainda esteja muito cedo
+                if agora < horario_permitido:
+                    raise serializers.ValidationError({
+                        "erro": f"Mesa reservada para {reserva.cliente_nome} às {reserva.hora_reserva.strftime('%H:%M')}. "
+                                f"A comanda só pode ser aberta a partir das {horario_permitido.strftime('%H:%M')}."
+                    })
+
+        return attrs
+    
 class ItemComandaSerializer(serializers.ModelSerializer): #estrutura itens e calcula o subtotal
     nome = serializers.CharField(source="item.nome", read_only=True)
     preco_unitario = serializers.DecimalField(source="preco",max_digits=10,decimal_places=2,read_only=True,)
