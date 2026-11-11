@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import seta from "../../assets/setadourada.png";
 
 export default function SolicitacoesGarcom() {
@@ -6,10 +6,12 @@ export default function SolicitacoesGarcom() {
   const [carregando, setCarregando] = useState(true);
   const [carregandoId, setCarregandoId] = useState(null);
   const [erro, setErro] = useState("");
+  const solicitacoesConhecidas = useRef(null);
 
   // Filtros
   const [mesaSelecionada, setMesaSelecionada] = useState("TODAS");
   const [statusSelecionado, setStatusSelecionado] = useState("TODOS");
+  const [abaSelecionada, setAbaSelecionada] = useState("PENDENTES");
 
   // Converte a resposta do servidor em JSON com tratamento de erro
   const lerRespostaJSON = async (resposta) => {
@@ -29,14 +31,39 @@ export default function SolicitacoesGarcom() {
 
   // Busca as solicitações cadastradas no banco de dados
   useEffect(() => {
+    let ativo = true;
+
+    const tocarSom = async () => {
+      try {
+        const AudioContext =
+          window.AudioContext || window.webkitAudioContext;
+
+        const contexto = new AudioContext();
+
+        await contexto.resume();
+
+        const oscilador = contexto.createOscillator();
+        const volume = contexto.createGain();
+
+        oscilador.connect(volume);
+        volume.connect(contexto.destination);
+
+        oscilador.frequency.value = 880;
+        volume.gain.value = 0.2;
+
+        oscilador.start();
+        oscilador.stop(contexto.currentTime + 0.3);
+
+        oscilador.onended = () => contexto.close();
+      } catch (erro) {
+        console.error("Não foi possível reproduzir o alerta:", erro);
+      }
+    };
+
     const buscarSolicitacoes = async () => {
       try {
-        setCarregando(true);
-        setErro("");
-
         const resposta = await fetch("/api/solicitacoes/");
 
-        // Lê a resposta sem tentar converter um conteúdo vazio
         const dados = await lerRespostaJSON(resposta);
 
         if (!resposta.ok) {
@@ -55,19 +82,57 @@ export default function SolicitacoesGarcom() {
           ? dados
           : dados.results || [];
 
+        if (!ativo) return;
+
+        // Primeira consulta: registra as solicitações existentes.
+        if (solicitacoesConhecidas.current === null) {
+          solicitacoesConhecidas.current = new Set(
+            lista.map(solicitacao => solicitacao.id)
+          );
+        } else {
+          // Verifica se chegaram novas solicitações de atendimento.
+          const novasSolicitacoes = lista.filter(
+            solicitacao =>
+              !solicitacoesConhecidas.current.has(solicitacao.id) &&
+              solicitacao.status === "PENDENTE" &&
+              solicitacao.tipo === "ATENDIMENTO"
+          );
+
+          if (novasSolicitacoes.length > 0) {
+            tocarSom();
+          }
+
+          // Atualiza os IDs conhecidos.
+          solicitacoesConhecidas.current = new Set(
+            lista.map(solicitacao => solicitacao.id)
+          );
+        }
+
         setSolicitacoes(lista);
+        setErro("");
 
       } catch (erro) {
         console.error("Erro ao buscar solicitações:", erro);
-        setErro(erro.message || "Erro ao conectar com o servidor.");
+
+        if (ativo) {
+          setErro(erro.message || "Erro ao conectar com o servidor.");
+        }
       } finally {
-        setCarregando(false);
+        if (ativo) {
+          setCarregando(false);
+        }
       }
     };
 
     buscarSolicitacoes();
-  }, []);
 
+    const intervalo = setInterval(buscarSolicitacoes, 5000);
+
+    return () => {
+      ativo = false;
+      clearInterval(intervalo);
+    };
+  }, []);
   //Define texto e cores de cada status
   const obterEstiloStatus = (status) => {
     switch (status) {
@@ -198,17 +263,18 @@ export default function SolicitacoesGarcom() {
     })
   );
 
-  // Aplica os filtros de mesa e status
+  // Aplica os filtros de mesa e aba selecionada
   const solicitacoesFiltradas = solicitacoes.filter((solicitacao) => {
       const correspondeMesa =
           mesaSelecionada === "TODAS" ||
           String(solicitacao.mesa) === String(mesaSelecionada);
 
-      const correspondeStatus =
-          statusSelecionado === "TODOS" ||
-          solicitacao.status === statusSelecionado;
+      const correspondeAba =
+          abaSelecionada === "PENDENTES"
+              ? solicitacao.status === "PENDENTE"
+              : solicitacao.status === "ATENDIDA";
 
-      return correspondeMesa && correspondeStatus;
+      return correspondeMesa && correspondeAba;
   });
 
   return (
@@ -225,6 +291,30 @@ export default function SolicitacoesGarcom() {
 
       {/* Filtros e listagem das mesas */}
       <section className="flex flex-col gap-5">
+        {/* Abas de solicitações */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => setAbaSelecionada("PENDENTES")}
+            className={`rounded-full px-6 py-3 text-sm font-semibold ${
+              abaSelecionada === "PENDENTES"
+                ? "bg-[#D4AF43] text-white"
+                : "border border-[#D4AF43] text-header"
+            }`}
+          >
+            Pendentes
+          </button>
+
+          <button
+            onClick={() => setAbaSelecionada("ATENDIDAS")}
+            className={`rounded-full px-6 py-3 text-sm font-semibold ${
+              abaSelecionada === "ATENDIDAS"
+                ? "bg-[#D4AF43] text-white"
+                : "border border-[#D4AF43] text-header"
+            }`}
+          >
+            Atendidas
+          </button>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm font-medium">
             Filtrar por:
@@ -246,28 +336,6 @@ export default function SolicitacoesGarcom() {
                   Mesa {mesa.numero}
                 </option>
               ))}
-            </select>
-
-            <img
-              src={seta}
-              alt=""
-              className="pointer-events-none absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 object-contain"
-            />
-          </div>
-
-          {/*Filtro por status */}
-          <div className="relative">
-            <select
-              value={statusSelecionado}
-              onChange={(e) => setStatusSelecionado(e.target.value)}
-              className="appearance-none rounded-full border border-[#D4AF43]
-              bg-white pl-5 pr-12 py-3 text-sm font-medium cursor-pointer
-              focus:outline-none focus:ring-1 focus:ring-[#D4AF43]"
-            >
-              <option value="TODOS">Todos os status</option>
-              <option value="PENDENTE">Pendente</option>
-              <option value="ATENDIDA">Atendida</option>
-              <option value="CANCELADA">Cancelada</option>
             </select>
 
             <img

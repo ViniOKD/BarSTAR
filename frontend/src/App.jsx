@@ -50,6 +50,7 @@ export default function App() {
   const [erroPedido, setErroPedido] = useState("");
   const [avisoPedido, setAvisoPedido] = useState("");
   const [solicitacoesPendentes, setSolicitacoesPendentes] = useState([]);
+  const [pedidosPendentes, setPedidosPendentes] = useState(0);
   const operacaoPedido = useRef(false);
 
   async function abrirPedidos() {
@@ -279,9 +280,38 @@ useEffect(() => {
     }
   }
 
-  buscarSolicitacoes();
+  async function buscarPedidosProntos() {
+  try {
+    const dados = await requisicaoApi("/api/pedidos/", {
+      cache: "no-store",
+    });
 
-  const intervalo = setInterval(buscarSolicitacoes, 5000);
+    const lista = Array.isArray(dados)
+      ? dados
+      : dados.results ?? [];
+
+    const quantidade = lista.reduce(
+      (total, pedido) =>
+        total +
+        (pedido.itens_pedido ?? []).filter(
+          (item) => item.status === "PRONTO"
+        ).length,
+      0
+    );
+
+    setPedidosPendentes(quantidade);
+  } catch (erro) {
+    console.error("Erro ao consultar pedidos prontos:", erro);
+  }
+}
+
+  buscarSolicitacoes();
+  buscarPedidosProntos();
+
+  const intervalo = setInterval(() => {
+    buscarSolicitacoes();
+    buscarPedidosProntos();
+  }, 5000);
 
   return () => clearInterval(intervalo);
 }, [paginaAtual]);
@@ -316,7 +346,7 @@ useEffect(() => {
   if (Object.hasOwn(telasGarcom, paginaAtual)) {
     return (
       <>
-        <SidebarGarcom paginaAtual={paginaAtual} quantidadePendentes={solicitacoesPendentes.length}/>
+        <SidebarGarcom paginaAtual={paginaAtual} quantidadePendentes={solicitacoesPendentes.length} quantidadePedidosPendentes={pedidosPendentes}/>
         <main className="ml-64 min-h-screen bg-fundo p-8">
           {telasGarcom[paginaAtual]}
         </main>

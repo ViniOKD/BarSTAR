@@ -142,7 +142,31 @@ class ItensPedidoSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if set(self.initial_data) != {"status"}:
-            raise serializers.ValidationError({"erro": "Envie somente o status do item."})
+            raise serializers.ValidationError({
+                "erro": "Envie somente o status do item."
+            })
+
+        status_atual = self.instance.status
+        novo_status = attrs.get("status")
+
+        transicoes_permitidas = {
+            ItensPedido.Status.EM_PREPARO: [
+                ItensPedido.Status.PRONTO,
+            ],
+            ItensPedido.Status.PRONTO: [
+                ItensPedido.Status.ENTREGUE,
+            ],
+            ItensPedido.Status.ENTREGUE: [],
+        }
+
+        if novo_status not in transicoes_permitidas[status_atual]:
+            raise serializers.ValidationError({
+                "status": (
+                    f"Não é permitido alterar o status de "
+                    f"{status_atual} para {novo_status}."
+                )
+            })
+
         return attrs
 
 

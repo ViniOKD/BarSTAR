@@ -58,7 +58,13 @@ function BotaoSair() {
   );
 }
 
-export function SidebarGarcom({ paginaAtual = "/garcom", onNavegar,quantidadePendentes= 0 }) {
+export function SidebarGarcom({
+  paginaAtual = "/garcom",
+  onNavegar,
+  quantidadePendentes = 0,
+  quantidadePedidosPendentes = 0,
+}) {
+
   function navegar(evento, destino) {
     if (!onNavegar) return;
     evento.preventDefault();
@@ -106,6 +112,13 @@ export function SidebarGarcom({ paginaAtual = "/garcom", onNavegar,quantidadePen
                     quantidadePendentes > 0 && (
                       <span className="ml-auto rounded-full bg-red-500 px-2 py-1 text-xs text-white">
                         {quantidadePendentes}
+                      </span>
+                    )}
+
+                  {link.href === "/garcom/pedidos" &&
+                    quantidadePedidosPendentes > 0 && (
+                      <span className="ml-auto rounded-full bg-red-500 px-2 py-1 text-xs text-white">
+                        {quantidadePedidosPendentes}
                       </span>
                     )}
               </a>
