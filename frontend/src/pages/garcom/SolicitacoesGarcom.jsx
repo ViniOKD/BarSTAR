@@ -10,7 +10,6 @@ export default function SolicitacoesGarcom() {
 
   // Filtros
   const [mesaSelecionada, setMesaSelecionada] = useState("TODAS");
-  const [statusSelecionado, setStatusSelecionado] = useState("TODOS");
   const [abaSelecionada, setAbaSelecionada] = useState("PENDENTES");
 
   // Converte a resposta do servidor em JSON com tratamento de erro
