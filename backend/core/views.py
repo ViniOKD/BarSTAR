@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
 from rest_framework.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from decimal import Decimal
 from rest_framework.decorators import action
 from django.contrib.auth.hashers import check_password
@@ -24,7 +25,7 @@ from .serializers import (
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
     FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer,
-    ItemCardapioSerializer, EnviarPedidoSerializer, SolicitacaoSerializer)
+    ItemCardapioSerializer, EnviarPedidoSerializer, SolicitacaoSerializer, HistoricoComandaSerializer)
 from .permissions import PermissoesPromocao
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
@@ -34,6 +35,7 @@ from .services.pedidos import enviar_pedido
 from .services.mesas import (
     erro_de_reserva_na_abertura, juntar_mesas, tem_comanda_ativa,
 )
+
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -653,4 +655,37 @@ class ComandasGarcomView(APIView):
             many=True
         )
 
+        return Response(serializer.data)
+
+class HistoricoComandasView(APIView):
+    # DRF precisa desta linha para checar permissões
+    queryset = Comanda.objects.all()
+
+    def get(self, request):
+        comandas = Comanda.objects.all()
+
+        # Captura os parâmetros
+        data_inicio = request.query_params.get('data_inicio')
+        data_fim = request.query_params.get('data_fim')
+        mesa = request.query_params.get('mesa')
+        garcom = request.query_params.get('garcom')
+
+        # APLICA OS FILTROS USANDO data_abertura
+        if data_inicio:
+            comandas = comandas.filter(data_abertura__gte=data_inicio)
+            
+        if data_fim:
+            comandas = comandas.filter(data_abertura__lte=f"{data_fim} 23:59:59") #mudar isso quando feito o fechamento da comanda
+            
+        if mesa:
+            comandas = comandas.filter(mesa__id=mesa) 
+            
+        if garcom:
+            comandas = comandas.filter(garcom__nome__icontains=garcom)
+
+        # ORDENA PELA ABERTURA MAIS RECENTE
+        comandas = comandas.order_by('-data_abertura') 
+        
+        serializer = HistoricoComandaSerializer(comandas, many=True)
+        
         return Response(serializer.data)
