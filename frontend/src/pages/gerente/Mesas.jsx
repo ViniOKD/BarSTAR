@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 function getCookie(name) {
   let cookieValue = null;
@@ -68,13 +68,12 @@ export default function Mesas() {
   const [modalSepararAberto, setModalSepararAberto] = useState(false);
   const [mesaParaSeparar, setMesaParaSeparar] = useState(null);
 
-  const buscarDados = async () => {
-    try {
+  const buscarDados = useCallback(() => {
+    return Promise.all([
+      fetch("/api/mesas/"),
+      fetch("/api/garcons/")
+    ]).then(async ([respostaMesas, respostaGarcons]) => {
       setErroApi(null);
-      const [respostaMesas, respostaGarcons] = await Promise.all([
-        fetch("/api/mesas/"),
-        fetch("/api/garcons/")
-      ]);
 
       if (respostaMesas.ok && respostaGarcons.ok) {
         const dadosMesas = await respostaMesas.json();
@@ -86,12 +85,9 @@ export default function Mesas() {
         setMesas(listaMesas);
         setGarcons(listaGarcons);
 
-        if (mesaParaReservar) {
-          const mesaAtualizada = listaMesas.find((m) => m.id === mesaParaReservar.id);
-          if (mesaAtualizada) {
-            setMesaParaReservar(mesaAtualizada);
-          }
-        }
+        setMesaParaReservar(atual => atual
+          ? listaMesas.find((m) => m.id === atual.id) ?? atual
+          : null);
       } else {
         let erros = [];
         if (!respostaMesas.ok) erros.push(`Mesas (${respostaMesas.status})`);
@@ -99,16 +95,16 @@ export default function Mesas() {
 
         setErroApi(`Erro no servidor ao carregar: ${erros.join(" e ")}.`);
       }
-    } catch (erro) {
+    }).catch(() => {
       setErroApi("Erro de Conexão. O React não conseguiu alcançar o Django.");
-    } finally {
+    }).finally(() => {
       setCarregando(false);
-    }
-  };
+    });
+  }, []);
 
   useEffect(() => {
     buscarDados();
-  }, []);
+  }, [buscarDados]);
 
   const mostrarSucesso = (mensagem) => {
     setMensagemSucesso(mensagem);
@@ -234,7 +230,7 @@ export default function Mesas() {
         const erros = await resposta.json().catch(() => ({}));
         setErroFormulario(erros.erro || erros.detail || "Erro ao efetuar a reserva.");
       }
-    } catch (erro) {
+    } catch {
       setErroFormulario("Erro de conexão ao tentar reservar.");
     }
   };
@@ -294,7 +290,7 @@ export default function Mesas() {
         const erroJson = await resposta.json().catch(() => ({}));
         setErroCancelamentoReserva(erroJson.erro || erroJson.detail || "Erro ao cancelar no servidor.");
       }
-    } catch (erro) {
+    } catch {
       setErroCancelamentoReserva("Erro de conexão ao tentar cancelar a reserva.");
     } finally {
       setCarregandoCancelamento(false);
@@ -346,7 +342,7 @@ export default function Mesas() {
         const erroJson = await resposta.json().catch(() => ({}));
         setErroJuntar(erroJson.erro || erroJson.detail || "Erro ao juntar mesas.");
       }
-    } catch (erro) {
+    } catch {
       setErroJuntar("Erro de conexão ao tentar juntar mesas.");
     } finally {
       setCarregandoJuntar(false);
@@ -379,7 +375,7 @@ export default function Mesas() {
         const erroJson = await resposta.json().catch(() => ({}));
         alert(erroJson.erro || erroJson.detail || "Erro ao desagrupar mesas.");
       }
-    } catch (erro) {
+    } catch {
       alert("Erro de conexão ao tentar separar mesas.");
     }
   };
@@ -447,7 +443,7 @@ export default function Mesas() {
         
         setErroFormulario(mensagemFormatada);
       }
-    } catch (erro) {
+    } catch {
       setErroFormulario("Erro de conexão ao tentar salvar.");
     }
   };
@@ -488,7 +484,7 @@ export default function Mesas() {
           setErroExclusao(`Erro ${resposta.status}: Ocorreu um problema ao tentar excluir.`);
         }
       }
-    } catch (erro) {
+    } catch {
       setErroExclusao("Erro de conexão ao tentar excluir a mesa.");
     }
   };
