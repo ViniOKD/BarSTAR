@@ -436,6 +436,11 @@ class PromocaoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Informe um percentual maior que zero e menor que 100."
             )
+
+        if round(value, 2) != value:
+            raise serializers.ValidationError(
+                "Informe o percentual com no máximo duas casas decimais."
+            )
         return value
 
     def get_situacao(self, obj):
