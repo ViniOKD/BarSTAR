@@ -2,6 +2,7 @@ from django.db import models
 from django.db.models import CheckConstraint, Q, UniqueConstraint
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils import timezone
+from django.contrib.auth.hashers import make_password
 # Create your models here.
 
 class GerenteManager(BaseUserManager):
@@ -59,6 +60,7 @@ class Garcom(models.Model):
     nome = models.CharField(max_length=50)
     tel = models.CharField(max_length=15, unique=True)
     cpf = models.CharField(max_length=11, unique=True)
+    senha = models.CharField(max_length=128, blank=True, default="")
     salario = models.DecimalField(max_digits=10, decimal_places=2)
     gerente = models.ForeignKey(
         Gerente,

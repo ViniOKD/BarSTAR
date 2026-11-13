@@ -41,9 +41,37 @@ class GerenteSerializer(serializers.ModelSerializer):
 
 
 class GarcomSerializer(serializers.ModelSerializer):
+    senha = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=False
+    )
+
     class Meta:
         model = Garcom
         fields = '__all__'
+
+    def create(self, validated_data):
+        senha = validated_data.pop("senha", None)
+
+        garcom = Garcom.objects.create(**validated_data)
+
+        if senha:
+            garcom.senha = make_password(senha)
+            garcom.save(update_fields=["senha"])
+
+        return garcom
+
+    def update(self, instance, validated_data):
+        senha = validated_data.pop("senha", None)
+
+        instance = super().update(instance, validated_data)
+
+        if senha:
+            instance.senha = make_password(senha)
+            instance.save(update_fields=["senha"])
+
+        return instance
 
 class ReservaSerializer(serializers.ModelSerializer):
     mesas_agrupadas_ids = serializers.PrimaryKeyRelatedField(

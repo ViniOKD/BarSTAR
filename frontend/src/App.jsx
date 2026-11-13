@@ -20,6 +20,7 @@ import PainelGarcom from "./pages/garcom/PainelGarcom";
 import SolicitacoesGarcom from "./pages/garcom/SolicitacoesGarcom";
 import PedidosGarcom from "./pages/garcom/PedidosGarcom";
 import { SidebarGarcom } from "./components/SidebarGarcom";
+import LoginGarcom from "./pages/garcom/LoginGarcom";
 
 const telasGerente = {
   "/gerente": <PainelGerente />,
@@ -330,6 +331,10 @@ useEffect(() => {
     return <Configuracoes />;
   }
 
+  if (paginaAtual === "/login/garcom") {
+    return <LoginGarcom />;
+  }
+  
   if (Object.hasOwn(telasGerente, paginaAtual)) {
     return (
       <>

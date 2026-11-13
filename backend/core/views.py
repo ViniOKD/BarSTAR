@@ -4,7 +4,6 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.contrib.auth import authenticate, login, logout
 from rest_framework import viewsets, status, mixins, viewsets, status
-
 from rest_framework.decorators import action
 from rest_framework import viewsets, status
 from rest_framework.response import Response
@@ -14,7 +13,9 @@ from rest_framework.exceptions import ValidationError
 from django.utils import timezone
 from decimal import Decimal
 from rest_framework.decorators import action
-
+from django.contrib.auth.hashers import check_password
+from rest_framework.permissions import AllowAny
+from .permissions import IsGarcomAuthenticated
 from .services.dar_preco import calcular_preco_final
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria, Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao, Reserva)
@@ -577,3 +578,63 @@ class LoginView(APIView):
             }, 
             status=status.HTTP_200_OK
         )
+
+class LoginGarcomView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        cpf = request.data.get("cpf")
+        senha = request.data.get("senha")
+
+        if not cpf or not senha:
+            return Response(
+                {"erro": "Informe o CPF e a senha."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        garcom = Garcom.objects.filter(cpf=cpf).first()
+
+        if not garcom or not garcom.senha:
+            return Response(
+                {"erro": "CPF ou senha inválidos."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if not check_password(senha, garcom.senha):
+            return Response(
+                {"erro": "CPF ou senha inválidos."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        # Inicia uma sessão exclusiva para o garçom
+        request.session.flush()
+        request.session["tipo_usuario"] = "garcom"
+        request.session["garcom_id"] = garcom.id
+
+        return Response({
+            "mensagem": "Login realizado com sucesso.",
+            "garcom": {
+                "id": garcom.id,
+                "nome": garcom.nome
+            }
+        }, status=status.HTTP_200_OK)
+
+class ComandasGarcomView(APIView):
+    permission_classes = [IsGarcomAuthenticated]
+
+    def get(self, request):
+        garcom_id = request.session.get("garcom_id")
+
+        comandas = Comanda.objects.filter(
+            mesa__garcom_id=garcom_id,
+            ativa=True
+        ).prefetch_related(
+            "pedidos__itens_pedido__item"
+        ).order_by("id")
+
+        serializer = ComandaConsultaSerializer(
+            comandas,
+            many=True
+        )
+
+        return Response(serializer.data)
