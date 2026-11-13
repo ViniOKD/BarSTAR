@@ -474,7 +474,10 @@ class ItensPromocaoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
-class SolicitacaoViewSet(viewsets.ModelViewSet):
+# Sem login: o cliente cria a solicitação e o garçom lista e atende.
+# Editar e excluir não existem, por isso não é um ModelViewSet completo.
+class SolicitacaoViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
+                         mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Solicitacao.objects.select_related('comanda__mesa').all()
     serializer_class = SolicitacaoSerializer
 

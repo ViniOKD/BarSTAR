@@ -367,8 +367,18 @@ class PromocaoSerializer(serializers.ModelSerializer):
 
         return promocao
 
+class MesaDoPedidoSerializer(serializers.ModelSerializer):
+    # A lista de pedidos é pública (garçom e cozinha não têm login),
+    # então mostra só o número da mesa e o nome do garçom.
+    garcom = serializers.CharField(source="garcom.nome", read_only=True)
+
+    class Meta:
+        model = Mesa
+        fields = ["id", "garcom"]
+
+
 class PedidoSerializer(serializers.ModelSerializer):
-    mesa = MesaSerializer(source='comanda.mesa', read_only=True)
+    mesa = MesaDoPedidoSerializer(source='comanda.mesa', read_only=True)
     cozinha = CozinhaSerializer(read_only=True)
     itens_pedido = ItensPedidoSerializer(many=True,read_only=True)
     class Meta:
