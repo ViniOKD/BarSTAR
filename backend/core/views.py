@@ -374,6 +374,22 @@ class PromocaoViewSet(viewsets.ModelViewSet):
         # Executa a remoção lógica por meio da função de serviço.
         remover_promocao(promocao_id=instance.pk)
 
+    @action(detail=False, methods=['get'], permission_classes=[DjangoModelPermissionsOrAnonReadOnly])
+    def ativas(self, request):
+        agora = timezone.now()
+        
+        promocoes_vigentes = self.get_queryset().filter(
+            data_inicio__lte=agora,
+            data_fim__gte=agora
+        )
+        
+        serializer = self.get_serializer(
+            promocoes_vigentes, 
+            many=True, 
+            context=self.get_serializer_context()
+        )
+        return Response(serializer.data)
+    
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemCardapioSerializer
