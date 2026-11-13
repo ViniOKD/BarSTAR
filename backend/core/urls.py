@@ -4,7 +4,7 @@ from .views import (    ReservaViewSet, health, PedidoViewSet, CategoriaViewSet,
     GarcomViewSet, MesaViewSet, CozinhaViewSet, ItemViewSet,
     ItensPedidoViewSet, AbrirComandaView, ItensPromocaoViewSet,
     PromocaoViewSet, ConsultarComandaView, EnviarPedidoView,
-    SolicitacaoViewSet, LoginView, LogoutView
+    SolicitacaoViewSet, LoginView, LogoutView, SessaoView
 )
 
 router = DefaultRouter()
@@ -23,6 +23,7 @@ router.register(r'reservas', ReservaViewSet, basename='reserva')
 urlpatterns = [
     path("health/", health, name="health"),
     path("login/", LoginView.as_view(), name='login'),
+    path("sessao/", SessaoView.as_view(), name='sessao'),
     path("logout/", LogoutView.as_view(), name='logout'),
     path('mesas/<int:id_mesa>/abrir-comanda/', AbrirComandaView.as_view(), name='abrir-comanda'),
     path('mesas/<int:id_mesa>/comanda/',ConsultarComandaView.as_view(),name='consultar-comanda'),

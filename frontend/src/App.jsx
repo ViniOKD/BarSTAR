@@ -7,6 +7,7 @@ import Comanda from "./pages/Comanda";
 import Configuracoes from "./pages/Configuracoes";
 import PainelGerente from "./pages/PainelGerente";
 import { SidebarGerente } from "./components/SidebarGerente";
+import RotaGerente from "./components/RotaGerente";
 import Usuarios from "./pages/gerente/Usuarios";
 import Mesas from "./pages/gerente/Mesas";
 import Categorias from "./pages/gerente/Categorias";
@@ -332,12 +333,12 @@ useEffect(() => {
 
   if (Object.hasOwn(telasGerente, paginaAtual)) {
     return (
-      <>
+      <RotaGerente>
         <SidebarGerente paginaAtual={paginaAtual}  />
         <main className="ml-64 min-h-screen bg-fundo p-8">
           {telasGerente[paginaAtual]}
         </main>
-      </>
+      </RotaGerente>
     );
   }
 

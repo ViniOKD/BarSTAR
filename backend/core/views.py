@@ -550,6 +550,23 @@ class SolicitacaoViewSet(viewsets.ModelViewSet):
             serializer.data,
             status=status.HTTP_201_CREATED)
 
+class SessaoView(APIView):
+    # Informa ao front se existe um gerente logado, antes de abrir as telas do gerente.
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response(
+                {"erro": "Faça login para continuar."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        return Response({
+            "gerente": {
+                "id": request.user.id,
+                "nome": request.user.nome,
+            },
+        })
+
+
 class LogoutView(APIView):
     def post(self, request):
         logout(request)
