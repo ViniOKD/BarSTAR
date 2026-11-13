@@ -169,7 +169,8 @@ export default function Mesas() {
     setFormDataReserva({
       cliente_nome: "",
       cliente_telefone: "",
-      data_reserva: new Date().toISOString().split("T")[0],
+      // Data local no formato AAAA-MM-DD; toISOString usaria UTC e viraria o dia às 21h.
+      data_reserva: new Date().toLocaleDateString("sv-SE"),
       hora_reserva: "19:00",
       mesas_agrupadas_ids: []
     });

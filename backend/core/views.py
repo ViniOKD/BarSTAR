@@ -29,6 +29,9 @@ from .services.promocoes import (
 )
 from .services.dar_preco import obter_precos_atuais
 from .services.pedidos import enviar_pedido
+from .services.mesas import (
+    erro_de_reserva_na_abertura, juntar_mesas, tem_comanda_ativa,
+)
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -150,11 +153,16 @@ class AbrirComandaView(APIView):
                 )
 
             # Verifica se a mesa já possui comanda ativa
-            if mesa.status == Mesa.Status.OCUPADA:
+            if mesa.status == Mesa.Status.OCUPADA or tem_comanda_ativa(mesa):
                 return Response(
                     {"erro": "Esta mesa já possui uma comanda em andamento. Procure o garçom para fechar a comanda atual."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+
+            # Perto do horário de uma reserva, só libera a partir da tolerância.
+            erro_reserva = erro_de_reserva_na_abertura(mesa)
+            if erro_reserva:
+                return Response({"erro": erro_reserva}, status=status.HTTP_400_BAD_REQUEST)
 
             # Cria a nova comanda no MySQL
             nova_comanda = Comanda.objects.create(
@@ -283,7 +291,8 @@ class MesaViewSet(viewsets.ModelViewSet):
             )
 
         data_reserva_str = request.data.get('data_reserva')
-        hoje_str = timezone.now().date().isoformat()
+        # localdate usa o fuso do bar; now().date() usaria UTC e viraria o dia às 21h.
+        hoje_str = timezone.localdate().isoformat()
 
         if (mesa.status == Mesa.Status.AGRUPADA or mesa.mesa_agrupada is not None) and data_reserva_str == hoje_str:
             return Response(
@@ -309,26 +318,8 @@ class MesaViewSet(viewsets.ModelViewSet):
         mesa_principal = self.get_object()
         mesas_ids = request.data.get('mesas_ids', []) # O front vai enviar um array: [2, 3]
 
-        if not mesas_ids:
-            return Response({"erro": "Nenhuma mesa selecionada para juntar."}, status=status.HTTP_400_BAD_REQUEST)
-
-        mesas_filhas = Mesa.objects.filter(id__in=mesas_ids)
-
-
-        for mesa in mesas_filhas:
-            if mesa.status != Mesa.Status.LIVRE:
-                return Response(
-                    {"erro": f"A mesa {mesa.id} não pode ser agrupada pois está com status {mesa.status}."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            if mesa.id == mesa_principal.id:
-                return Response(
-                    {"erro": "Uma mesa não pode ser agrupada a si mesma."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-        # Vincula à mesa principal e muda o status para AGRUPADA
-        mesas_filhas.update(mesa_agrupada=mesa_principal, status=Mesa.Status.AGRUPADA)
+        # Valida as mesas, vincula à principal e muda o status para AGRUPADA
+        juntar_mesas(mesa_principal, mesas_ids)
 
         return Response(
             {"mensagem": f"Mesas agrupadas com sucesso à Mesa {mesa_principal.id}!"}, 

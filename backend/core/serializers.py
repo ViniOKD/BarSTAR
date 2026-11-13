@@ -13,6 +13,7 @@ from django.db.models import prefetch_related_objects
 from django.utils import timezone
 from .services.promocoes import salvar_promocao
 from .services.dar_preco import obter_precos_atuais
+from .services.mesas import status_atual
 # Os serializers convertem dados do banco de dados para formato JSON
 
 
@@ -134,27 +135,8 @@ class MesaSerializer(serializers.ModelSerializer):
         read_only_fields = ['gerente', 'gerente_id']
 
     def get_status_dinamico(self, obj):
-        # Se a mesa estiver Inativa ou Ocupada fisicamente agora, mantém
-        if obj.status in ['INATIVA', 'OCUPADA']:
-            return obj.status
-
-        hoje = timezone.now().date()
-        agora = timezone.now()
-
-        # Verifica se existe alguma reserva ativa para HOJE nesta mesa
-        reserva_hoje = obj.reservas.filter(ativa=True, data_reserva=hoje).first()
-
-        if reserva_hoje:
-            data_hora_reserva = timezone.make_aware(
-                datetime.datetime.combine(reserva_hoje.data_reserva, reserva_hoje.hora_reserva)
-            )
-            # Define a janela do dia: se estiver no dia da reserva (a partir de 2h antes até o horário)
-            janela_bloqueio = data_hora_reserva - datetime.timedelta(hours=2)
-            
-            if janela_bloqueio <= agora <= (data_hora_reserva + datetime.timedelta(hours=2)):
-                return 'RESERVADA'
-
-        return 'LIVRE'
+        # Considera comanda aberta, agrupamento e reserva próxima do horário.
+        return status_atual(obj)
 
 class CozinhaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -396,10 +378,7 @@ class EnviarPedidoSerializer(serializers.Serializer):
 class AbrirComandaSerializer(serializers.Serializer):
     cpf = serializers.CharField(max_length=14)
     telefone = serializers.CharField(max_length=15)
-    mesa_id = serializers.PrimaryKeyRelatedField(
-        queryset=Mesa.objects.all(),
-        source="mesa"
-    )
+    # A mesa vem da URL (/mesas/<id>/abrir-comanda/) e é validada na view.
 
     # Validação do CPF
     def validate_cpf(self, value):
@@ -432,36 +411,6 @@ class AbrirComandaSerializer(serializers.Serializer):
             raise serializers.ValidationError("O número de telefone informado é inválido. Inclua o DDD.")
         return tel_numeros
 
-    # Valicao da reserva e do horario 
-    def validate(self, attrs):
-        mesa = attrs.get('mesa')
-
-        # Só valida se a mesa estiver com status RESERVADA
-        if mesa and mesa.status == 'RESERVADA':
-            hoje = timezone.now().date()
-            agora = timezone.now()
-
-            # Busca a reserva ativa programada para hoje nesta mesa
-            reserva = mesa.reservas.filter(ativa=True, data_reserva=hoje).order_by('hora_reserva').first()
-
-            if reserva:
-                # Junta data e hora da reserva em um datetime ciente do fuso horário
-                data_hora_reserva = timezone.make_aware(
-                    datetime.datetime.combine(reserva.data_reserva, reserva.hora_reserva)
-                )
-
-                # Tolerância: Permite abrir comanda até 30 minutos antes da reserva
-                horario_permitido = data_hora_reserva - datetime.timedelta(minutes=30)
-
-                # Bloqueio caso ainda esteja muito cedo
-                if agora < horario_permitido:
-                    raise serializers.ValidationError({
-                        "erro": f"Mesa reservada para {reserva.cliente_nome} às {reserva.hora_reserva.strftime('%H:%M')}. "
-                                f"A comanda só pode ser aberta a partir das {horario_permitido.strftime('%H:%M')}."
-                    })
-
-        return attrs
-    
 
 class ItemComandaSerializer(serializers.ModelSerializer):
     nome = serializers.SerializerMethodField()
