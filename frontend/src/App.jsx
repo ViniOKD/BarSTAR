@@ -13,7 +13,7 @@ import Mesas from "./pages/gerente/Mesas";
 import Categorias from "./pages/gerente/Categorias";
 import Produtos from "./pages/gerente/Produtos";
 import Promocoes from "./pages/gerente/Promocoes";
-import Comandas from "./pages/gerente/Comandas";
+import Historico from "./pages/gerente/Historico";
 import Pedidos from "./components/Pedidos";
 import { requisicaoApi } from "./utils/api";
 import { atualizarPrecosCarrinho, aplicarPrecosAlterados, dadosEnvioPedido } from "./utils/carrinho";
@@ -30,7 +30,7 @@ const telasGerente = {
   "/gerente/categorias": <Categorias />,
   "/gerente/produtos": <Produtos />,
   "/gerente/promocoes": <Promocoes />,
-  "/gerente/comandas": <Comandas />,
+  "/gerente/historico": <Historico />,
 };
 
 const telasGarcom = {

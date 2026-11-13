@@ -657,42 +657,35 @@ class ComandasGarcomView(APIView):
 
         return Response(serializer.data)
 
-# Não esqueça de importar o HistoricoComandaSerializer lá no topo
-from django.utils.dateparse import parse_date
-
 class HistoricoComandasView(APIView):
-    # Apenas gerentes devem acessar o histórico completo
-    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    # DRF precisa desta linha para checar permissões
+    queryset = Comanda.objects.all()
 
     def get(self, request):
-        # Traz apenas comandas inativas (fechadas)
-        comandas = Comanda.objects.filter(ativa=False).select_related('mesa', 'garcom').prefetch_related('pedidos__itens_pedido__item')
+        comandas = Comanda.objects.all()
 
-        # Captura os filtros da URL (ex: ?data_inicio=2023-01-01&mesa=5)
+        # Captura os parâmetros
         data_inicio = request.query_params.get('data_inicio')
         data_fim = request.query_params.get('data_fim')
-        mesa_id = request.query_params.get('mesa')
-        garcom_id = request.query_params.get('garcom')
+        mesa = request.query_params.get('mesa')
+        garcom = request.query_params.get('garcom')
 
-        # Aplica os filtros
+        # APLICA OS FILTROS USANDO data_abertura
         if data_inicio:
-            parsed_inicio = parse_date(data_inicio)
-            if parsed_inicio:
-                comandas = comandas.filter(data_fechamento__date__gte=parsed_inicio)
-        
+            comandas = comandas.filter(data_abertura__gte=data_inicio)
+            
         if data_fim:
-            parsed_fim = parse_date(data_fim)
-            if parsed_fim:
-                comandas = comandas.filter(data_fechamento__date__lte=parsed_fim)
+            comandas = comandas.filter(data_abertura__lte=f"{data_fim} 23:59:59") #mudar isso quando feito o fechamento da comanda
+            
+        if mesa:
+            comandas = comandas.filter(mesa__id=mesa) 
+            
+        if garcom:
+            comandas = comandas.filter(garcom__nome__icontains=garcom)
 
-        if mesa_id:
-            comandas = comandas.filter(mesa_id=mesa_id)
-
-        if garcom_id:
-            comandas = comandas.filter(garcom_id=garcom_id)
-
-        # Ordena das mais recentes para as mais antigas
-        comandas = comandas.order_by('-data_fechamento')
-
+        # ORDENA PELA ABERTURA MAIS RECENTE
+        comandas = comandas.order_by('-data_abertura') 
+        
         serializer = HistoricoComandaSerializer(comandas, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        return Response(serializer.data)

@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (    ReservaViewSet, health, PedidoViewSet, CategoriaViewSet, GerenteViewSet,
+from .views import (    HistoricoComandasView, ReservaViewSet, health, PedidoViewSet, CategoriaViewSet, GerenteViewSet,
     GarcomViewSet, MesaViewSet, CozinhaViewSet, ItemViewSet,
     ItensPedidoViewSet, AbrirComandaView, ItensPromocaoViewSet,
     PromocaoViewSet, ConsultarComandaView, EnviarPedidoView,
@@ -29,5 +29,6 @@ urlpatterns = [
     path('enviar-pedido/', EnviarPedidoView.as_view(), name='enviar-pedido'),
     path("login/garcom/", LoginGarcomView.as_view(), name="login-garcom"),
     path("garcom/comandas/", ComandasGarcomView.as_view(), name="comandas-garcom"),
+    path('historico/comandas/', HistoricoComandasView.as_view(), name="historico-comandas"),
     path('', include(router.urls))
 ]
