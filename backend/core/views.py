@@ -336,6 +336,9 @@ class MesaViewSet(viewsets.ModelViewSet):
     serializer_class = MesaSerializer
     permission_classes = [SomenteGerente]
 
+    def perform_create(self, serializer):
+        serializer.save(gerente=self.request.user)
+
     def destroy(self, request, *args, **kwargs):
         mesa = self.get_object()
 

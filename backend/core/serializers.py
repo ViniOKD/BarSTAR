@@ -211,11 +211,6 @@ class MesaSerializer(serializers.ModelSerializer):
             source="garcom",
             write_only=True,
         )
-    gerente_id = serializers.PrimaryKeyRelatedField(
-            queryset=Gerente.objects.all(),
-            source="gerente",
-            write_only=True,
-        )
 
     reservas = serializers.SerializerMethodField()
 
@@ -239,7 +234,8 @@ class MesaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mesa
         fields = '__all__'
-        read_only_fields = ['gerente', 'gerente_id']
+        # O gerente da mesa é quem está logado; a view preenche esse campo.
+        read_only_fields = ['gerente']
 
     def get_status_dinamico(self, obj):
         # Considera comanda aberta, agrupamento e reserva próxima do horário.

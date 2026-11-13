@@ -34,13 +34,8 @@ export default function Configuracoes() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cpf, senha }),
       });
-      const { id, cargo } = dados.usuario;
-      // A tela de mesas usa o ID do gerente guardado no navegador
-      if (cargo === "GERENTE") {
-        localStorage.setItem("gerente_id", id);
-      }
       // Cada cargo vai para a sua própria tela
-      window.location.href = paginaInicialDoCargo[cargo];
+      window.location.href = paginaInicialDoCargo[dados.usuario.cargo];
     } catch (erro) {
       if (erro.status === 401) {
         // O servidor informa se o CPF ou a senha estão errados ou se o usuário está inativo
