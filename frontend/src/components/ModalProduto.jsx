@@ -19,7 +19,7 @@ export default function ModalProduto({ produto, onFechar, onAdicionar,  itemEmEd
   const quantidadeNumerica = Number(quantidade);
   const quantidadeValida = Number.isInteger(quantidadeNumerica) && quantidadeNumerica >= 1
     && quantidadeNumerica <= 2147483647;
-  const subtotal = BigInt(paraCentavos(preco)) * BigInt(quantidadeValida ? quantidadeNumerica : 0);
+  const subtotal = paraCentavos(preco) * (quantidadeValida ? quantidadeNumerica : 0);
   const detalhe = produto.detalhe || (produto.volume_ml != null ? `${produto.volume_ml} ml` : "");
   const emPromocao = produto.promocao_atual && paraCentavos(preco) < paraCentavos(produto.preco_unitario);
 
