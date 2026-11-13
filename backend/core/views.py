@@ -9,7 +9,7 @@ from rest_framework.decorators import action
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.exceptions import ValidationError
 from django.utils import timezone
 from decimal import Decimal
@@ -24,7 +24,6 @@ from .serializers import (
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
     FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer,
     ItemCardapioSerializer, EnviarPedidoSerializer, SolicitacaoSerializer)
-from .permissions import PermissoesPromocao
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
 )
@@ -59,7 +58,7 @@ class PedidoViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
         "comanda__mesa__garcom__gerente", "cozinha",
     ).prefetch_related("itens_pedido__item__categoria")
     serializer_class = PedidoSerializer
-    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly]
     http_method_names = ["get", "patch", "head", "options"]
 
 
@@ -68,13 +67,14 @@ class ItensPedidoViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
     
     queryset = ItensPedido.objects.select_related("item__categoria", "pedido")
     serializer_class = ItensPedidoSerializer
-    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly]
     http_method_names = ["get", "patch", "head", "options"]
 
 class CategoriaViewSet(viewsets.ModelViewSet):
     queryset = Categoria.objects.all()
     serializer_class = CategoriaSerializer
-    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    # Só as telas do gerente usam; o cardápio recebe a categoria dentro de cada item.
+    permission_classes = [IsAuthenticated]
    
 
     def get_queryset(self):
@@ -233,14 +233,17 @@ class EnviarPedidoView(APIView):
 class GerenteViewSet(viewsets.ModelViewSet):
     queryset = Gerente.objects.all()
     serializer_class = GerenteSerializer
+    permission_classes = [IsAuthenticated]
 
 class GarcomViewSet(viewsets.ModelViewSet):
     queryset = Garcom.objects.all()
     serializer_class = GarcomSerializer
+    permission_classes = [IsAuthenticated]
 
 class ReservaViewSet(viewsets.ModelViewSet):
     queryset = Reserva.objects.all()
     serializer_class = ReservaSerializer
+    permission_classes = [IsAuthenticated]
 
     def destroy(self, request, *args, **kwargs):
         try:
@@ -256,6 +259,7 @@ class ReservaViewSet(viewsets.ModelViewSet):
 class MesaViewSet(viewsets.ModelViewSet):
     queryset = Mesa.objects.all()
     serializer_class = MesaSerializer
+    permission_classes = [IsAuthenticated]
 
     def destroy(self, request, *args, **kwargs):
         mesa = self.get_object()
@@ -346,6 +350,7 @@ class MesaViewSet(viewsets.ModelViewSet):
 class CozinhaViewSet(viewsets.ModelViewSet):
     queryset = Cozinha.objects.all()
     serializer_class = CozinhaSerializer
+    permission_classes = [IsAuthenticated]
 
 class PromocaoViewSet(viewsets.ModelViewSet):
     # Consulta somente promoções não removidas e carrega seus itens e categorias.
@@ -354,7 +359,7 @@ class PromocaoViewSet(viewsets.ModelViewSet):
     ).prefetch_related("itens_promocao__item__categoria")
 
     serializer_class = PromocaoSerializer
-    permission_classes = [PermissoesPromocao]
+    permission_classes = [IsAuthenticated]
 
     def get_serializer_context(self):
         # Acrescenta o horário atual ao contexto padrão do serializer.
@@ -369,7 +374,7 @@ class PromocaoViewSet(viewsets.ModelViewSet):
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemCardapioSerializer
-    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly]
     
 
     def perform_create(self, serializer):
@@ -466,6 +471,7 @@ class ItemViewSet(viewsets.ModelViewSet):
 class ItensPromocaoViewSet(viewsets.ModelViewSet):
     queryset = ItensPromocao.objects.all()
     serializer_class = ItensPromocaoSerializer
+    permission_classes = [IsAuthenticated]
 
 
 class SolicitacaoViewSet(viewsets.ModelViewSet):
