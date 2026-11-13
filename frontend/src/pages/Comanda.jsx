@@ -59,7 +59,6 @@ export default function Comanda({ itens = [] }) {
       setCarregandoFechamento(false);
     }
   };
-  console.log("Itens da comanda:", itens);
   return (
     <section className="text-header">
       <div className="mb-6">
@@ -80,7 +79,7 @@ export default function Comanda({ itens = [] }) {
             >
               <div className="min-w-0 flex-1">
                 <h2 className="font-header font-bold">
-                  {registro.item.nome}
+                  {registro.nome}
                 </h2>
                 {registro.preco_original != null && paraCentavos(registro.preco_original) > paraCentavos(registro.preco) && (
                   <p className="mt-1 text-sm text-header/70">

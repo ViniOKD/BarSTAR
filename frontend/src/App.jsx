@@ -230,11 +230,9 @@ async function chamarGarcom() {
         // Junta os itens de todos os pedidos da comanda.
         const itens = (dados.pedidos ?? []).flatMap((pedido) =>
           (pedido.itens ?? []).map((item) => ({
-            id: item.id,
-            item: { nome: item.nome },
+            // Mantém nome, status e dados da promoção; a tela usa "preco".
+            ...item,
             preco: item.preco_unitario,
-            quantidade: item.quantidade,
-            status: item.status,
           }))
         );
 

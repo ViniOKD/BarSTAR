@@ -447,6 +447,7 @@ class ItemComandaSerializer(serializers.ModelSerializer):
         fields = [
             "id", "nome", "quantidade", "preco_unitario", "preco_original",
             "desconto_unitario", "promocao_aplicada", "nome_promocao_registrada", "subtotal",
+            "status",
         ]
         read_only_fields = fields
 
