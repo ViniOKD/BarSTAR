@@ -28,13 +28,12 @@ export default function Configuracoes() {
     setMensagem("");
     setCarregando(true);
     try {
-      await requisicaoApi("/api/login/", {
+      const dados = await requisicaoApi("/api/login/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cpf, senha }),
       });
       // Salvando o ID do gerente no navegador
-      const dados = await resposta.json();
       if (dados.gerente && dados.gerente.id) {
         localStorage.setItem("gerente_id", dados.gerente.id);
       }
