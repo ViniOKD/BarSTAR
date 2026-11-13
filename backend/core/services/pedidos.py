@@ -3,9 +3,28 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import APIException, ValidationError
 
-from core.models import Categoria, Comanda, Cozinha, ItensPedido, ItensPromocao, Pedido, Promocao
+from core.models import Categoria, Comanda, Cozinha, Funcionario, ItensPedido, ItensPromocao, Pedido, Promocao
 from .dar_preco import obter_precos_atuais
 from .promocoes import bloquear_itens
+
+
+# Comidas vão para a cozinha principal (1) e bebidas para a cozinha do bar (2).
+COZINHA_POR_TIPO = {
+    Categoria.TipoCategoria.PRATO: 1,
+    Categoria.TipoCategoria.BEBIDA: 2,
+}
+
+# Quem trabalha na cozinha vê só comidas; quem trabalha no bar vê só bebidas.
+COZINHA_POR_CARGO = {
+    Funcionario.Cargo.COZINHA: COZINHA_POR_TIPO[Categoria.TipoCategoria.PRATO],
+    Funcionario.Cargo.BAR: COZINHA_POR_TIPO[Categoria.TipoCategoria.BEBIDA],
+}
+
+
+def cozinha_do_usuario(usuario):
+    # Retorna o id da cozinha do funcionário, ou None para quem vê todos os pedidos.
+    cargo = getattr(usuario, "cargo", None)
+    return COZINHA_POR_CARGO.get(cargo)
 
 
 class PrecoAlterado(APIException):
@@ -56,16 +75,11 @@ def enviar_pedido(*, comanda_id, itens):
         ids_categorias.append(item.categoria_id)
     categorias = Categoria.objects.in_bulk(ids_categorias)
 
-    cozinhas = Cozinha.objects.in_bulk([1, 2])
+    cozinhas = Cozinha.objects.in_bulk(COZINHA_POR_TIPO.values())
     if len(cozinhas) != 2:
         raise ValidationError({
             "erro": "As cozinhas necessárias não estão cadastradas.",
         })
-
-    cozinha_por_tipo = {
-        Categoria.TipoCategoria.PRATO: 1,
-        Categoria.TipoCategoria.BEBIDA: 2,
-    }
 
     destinos = {}
     for item in produtos.values():
@@ -76,7 +90,7 @@ def enviar_pedido(*, comanda_id, itens):
             })
 
         tipo = categorias[item.categoria_id].tipo_categoria
-        cozinha_id = cozinha_por_tipo.get(tipo)
+        cozinha_id = COZINHA_POR_TIPO.get(tipo)
 
         if cozinha_id is None:
             raise ValidationError({

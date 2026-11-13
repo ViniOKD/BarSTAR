@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (    ReservaViewSet, health, PedidoViewSet, CategoriaViewSet, GerenteViewSet,
-    GarcomViewSet, MesaViewSet, CozinhaViewSet, ItemViewSet,
+    FuncionarioViewSet, MesaViewSet, CozinhaViewSet, ItemViewSet,
     ItensPedidoViewSet, AbrirComandaView, ItensPromocaoViewSet,
     PromocaoViewSet, ConsultarComandaView, EnviarPedidoView,
     SolicitacaoViewSet, LoginView, LogoutView, SessaoView
@@ -10,7 +10,7 @@ from .views import (    ReservaViewSet, health, PedidoViewSet, CategoriaViewSet,
 router = DefaultRouter()
 router.register(r'pedidos', PedidoViewSet, basename='pedido')
 router.register(r'categorias', CategoriaViewSet, basename='categoria')
-router.register(r'garcons', GarcomViewSet, basename='garcom')
+router.register(r'funcionarios', FuncionarioViewSet, basename='funcionario')
 router.register(r'mesas', MesaViewSet, basename='mesa')
 router.register(r'cozinhas', CozinhaViewSet, basename='cozinha')
 router.register(r'itens', ItemViewSet, basename='item')
