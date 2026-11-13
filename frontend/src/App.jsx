@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar";
 import Bebidas from "./pages/Bebidas";
 import Comidas from "./pages/Comidas";
 import Comanda from "./pages/Comanda";
+import PromocoesCliente from "./pages/PromocoesCliente";
 import Configuracoes from "./pages/Configuracoes";
 import PainelGerente from "./pages/PainelGerente";
 import { SidebarGerente } from "./components/SidebarGerente";
@@ -216,7 +217,7 @@ export default function App() {
       />
       <main className="ml-64 flex-1 p-6">
 
-        {paginaAtual === "/cardapio" && (
+        {(paginaAtual === "/cardapio" || paginaAtual === "/promocoes") && (
           <div className="mb-6 flex justify-end">
             <button
               type="button"
@@ -283,14 +284,21 @@ export default function App() {
           </>
         )}
 
-        {paginaAtual === "/promocoes" && <h1>Promoções</h1>}
+        {paginaAtual === "/promocoes" && (
+          <PromocoesCliente
+            onAdicionarItem={adicionarItemPedido}
+            itemEmEdicao={itemEmEdicao}
+            onAtualizarItem={atualizarItemPedido}
+            onCancelarEdicao={() => setItemEmEdicao(null)}
+          />
+        )}
 
         {paginaAtual === "/comanda" && (
           <Comanda itens={itensComanda} />
         )}
 
         {/* Painel lateral de Pedidos */}
-        {paginaAtual === "/cardapio" && (
+        {(paginaAtual === "/cardapio" || paginaAtual === "/promocoes") && (
           <Pedidos
             aberto={pedidosAberto}
             onFechar={() => setPedidosAberto(false)}
