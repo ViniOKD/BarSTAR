@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { requisicaoApi } from "../utils/api";
+import { paginaInicialDoCargo } from "../utils/funcionarios";
 import "./Configuracoes.css";
 
 function IconeCampo({ senha = false }) {
@@ -33,14 +34,17 @@ export default function Configuracoes() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cpf, senha }),
       });
-      // Salvando o ID do gerente no navegador
-      if (dados.gerente && dados.gerente.id) {
-        localStorage.setItem("gerente_id", dados.gerente.id);
+      const { id, cargo } = dados.usuario;
+      // A tela de mesas usa o ID do gerente guardado no navegador
+      if (cargo === "GERENTE") {
+        localStorage.setItem("gerente_id", id);
       }
-      window.location.href = "/gerente";
+      // Cada cargo vai para a sua própria tela
+      window.location.href = paginaInicialDoCargo[cargo];
     } catch (erro) {
       if (erro.status === 401) {
-        setErro("Não foi possível entrar. Verifique seu CPF e senha.");
+        // O servidor informa se o CPF ou a senha estão errados ou se o usuário está inativo
+        setErro(erro.dados?.erro || "Não foi possível entrar. Verifique seu CPF e senha.");
         setSenha("");
       } else if (erro.status === 403) {
         setErro("Não foi possível validar a sessão. Recarregue a página e tente novamente.");
@@ -58,7 +62,7 @@ export default function Configuracoes() {
     <main className="configuracoes-login">
       <section className="login-cartao" aria-labelledby="titulo-login">
         <header className="login-cabecalho">
-          <h1 id="titulo-login">Login do gerente</h1>
+          <h1 id="titulo-login">Login</h1>
         </header>
         <form className="login-formulario" onSubmit={aoEnviar} aria-busy={carregando}>
           <label className="sr-only" htmlFor="cpf">CPF</label>

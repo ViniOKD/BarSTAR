@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import seta from "../../assets/setadourada.png";
+import { requisicaoApi } from "../../utils/api";
 
 export default function SolicitacoesGarcom() {
   const [solicitacoes, setSolicitacoes] = useState([]);
@@ -206,27 +207,11 @@ export default function SolicitacoesGarcom() {
     try {
       setCarregandoId(idSolicitacao);
 
-      const resposta = await fetch(
+      // requisicaoApi envia o token CSRF exigido de quem está logado.
+      const dados = await requisicaoApi(
         `/api/solicitacoes/${idSolicitacao}/atender/`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json",},
-        }
+        { method: "PATCH" }
       );
-
-      const dados = await lerRespostaJSON(resposta);
-
-      if (!resposta.ok) {
-        throw new Error(
-          dados?.erro ||
-          dados?.detail ||
-          "Não foi possível confirmar o atendimento."
-        );
-      }
-
-      if (!dados) {
-        throw new Error("O servidor retornou uma resposta vazia.");
-      }
 
       // Atualiza só a solicitação atendida
       setSolicitacoes((listaAtual) =>
