@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 // Função para capturar o token CSRF dos cookies do navegador 
 function getCookie(name) {
@@ -35,29 +35,25 @@ export default function Categorias() {
     setTimeout(() => setMensagemSucesso(""), 3000);
   };
 
-  const mostrarErro = (mensagem) => {
+  const mostrarErro = useCallback((mensagem) => {
     setErroApi(mensagem);
     setTimeout(() => setErroApi(null), 5000);
-  };
+  }, []);
 
-  const buscarCategorias = async () => {
-    try {
-      const resposta = await fetch("/api/categorias/", {credentials: 'include'});
-      if (!resposta.ok) throw new Error(`Erro do servidor (${resposta.status})`);
-      const dados = await resposta.json();
-      
-      const lista = Array.isArray(dados) ? dados : dados.results || [];
-      setCategorias(lista);
-    } catch (erro) {
-      mostrarErro("Erro de Conexão. O React não conseguiu alcançar o Django.");
-    } finally {
-      setCarregando(false);
-    }
-  };
+  const buscarCategorias = useCallback(() => {
+    return fetch("/api/categorias/", {credentials: 'include'})
+      .then(resposta => {
+        if (!resposta.ok) throw new Error(`Erro do servidor (${resposta.status})`);
+        return resposta.json();
+      })
+      .then(dados => setCategorias(Array.isArray(dados) ? dados : dados.results || []))
+      .catch(() => mostrarErro("Erro de Conexão. O React não conseguiu alcançar o Django."))
+      .finally(() => setCarregando(false));
+  }, [mostrarErro]);
 
   useEffect(() => {
     buscarCategorias();
-  }, []);
+  }, [buscarCategorias]);
 
   const salvarCategoria = async (e) => {
     e.preventDefault();
