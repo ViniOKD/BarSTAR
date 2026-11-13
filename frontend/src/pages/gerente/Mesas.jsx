@@ -71,7 +71,7 @@ export default function Mesas() {
   const buscarDados = useCallback(() => {
     return Promise.all([
       fetch("/api/mesas/"),
-      fetch("/api/garcons/")
+      fetch("/api/funcionarios/?cargo=GARCOM&ativo=true")
     ]).then(async ([respostaMesas, respostaGarcons]) => {
       setErroApi(null);
 
