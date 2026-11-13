@@ -4,6 +4,9 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.contrib.auth import authenticate, login, logout
 from rest_framework import viewsets, status, mixins, viewsets, status
+
+from rest_framework.decorators import action
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
@@ -14,15 +17,13 @@ from rest_framework.decorators import action
 
 from .services.dar_preco import calcular_preco_final
 from .models import (
-    Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Reserva
-)
+    Gerente, Garcom, Mesa, Cozinha, Categoria, Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao, Reserva)
 from .serializers import (
     PedidoSerializer, CategoriaSerializer, GerenteSerializer, GarcomSerializer,
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
     FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer,
-    ItemCardapioSerializer, EnviarPedidoSerializer)
+    ItemCardapioSerializer, EnviarPedidoSerializer, SolicitacaoSerializer)
 from .permissions import PermissoesPromocao
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
@@ -465,6 +466,89 @@ class ItemViewSet(viewsets.ModelViewSet):
 class ItensPromocaoViewSet(viewsets.ModelViewSet):
     queryset = ItensPromocao.objects.all()
     serializer_class = ItensPromocaoSerializer
+
+
+class SolicitacaoViewSet(viewsets.ModelViewSet):
+    queryset = Solicitacao.objects.select_related('comanda__mesa').all()
+    serializer_class = SolicitacaoSerializer
+
+    def get_queryset(self):
+        #Permite consultar solicitações com determinado status
+        solicitacoes = super().get_queryset()
+        status_filtro = self.request.query_params.get('status')
+        id_mesa = self.request.query_params.get('mesa')
+
+        if status_filtro:
+            solicitacoes = solicitacoes.filter(status=status_filtro)
+
+        if id_mesa:
+            solicitacoes = solicitacoes.filter(comanda__mesa_id=id_mesa)
+
+        return solicitacoes
+
+    @action(detail=True, methods=['patch'], url_path='atender')
+    def atender(self, request, pk=None):
+        solicitacao = self.get_object()
+
+        if solicitacao.status != Solicitacao.StatusSolicitacao.PENDENTE:
+            return Response(
+                {'erro': 'Apenas solicitações pendentes podem ser atendidas.'},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        solicitacao.status = Solicitacao.StatusSolicitacao.ATENDIDA
+        solicitacao.save()
+        serializer = self.get_serializer(solicitacao)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def create(self, request, *args, **kwargs):
+        id_comanda = request.data.get('comanda')
+
+        if not id_comanda:
+            return Response(
+                {'erro': 'Informe o ID da comanda.'},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            with transaction.atomic():
+                #Bloqueia a comanda durante a verificação e a criação.
+                comanda = Comanda.objects.select_for_update().get(
+                    pk=id_comanda,
+                    ativa=True
+                )
+
+                #Verifica se já existe um fechamento pendente.
+                if serializer.validated_data.get('tipo') == 'FECHAMENTO':
+
+                    fechamento_pendente = Solicitacao.objects.filter(
+                        comanda=comanda,
+                        tipo='FECHAMENTO',
+                        status='PENDENTE'
+                    ).exists()
+
+                    if fechamento_pendente:
+                        return Response(
+                            {
+                                'erro': (
+                                    'Já existe uma solicitação de fechamento '
+                                    'pendente para esta comanda.'
+                                )
+                            },
+                            status=status.HTTP_409_CONFLICT
+                        )
+                #cria a solicitação.
+                serializer.save(comanda=comanda)
+        except (Comanda.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {'erro': 'Comanda não encontrada ou inativa.'},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED)
 
 class LogoutView(APIView):
     def post(self, request):

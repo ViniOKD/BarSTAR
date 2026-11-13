@@ -1,9 +1,7 @@
 import re
 from rest_framework import serializers
 from .models import (
-    Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Reserva
-)
+    Gerente, Garcom, Mesa, Cozinha, Categoria, Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao, Reserva)
 from decimal import Decimal
 import phonenumbers
 from django.db.models import Q
@@ -232,7 +230,31 @@ class ItensPedidoSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if set(self.initial_data) != {"status"}:
-            raise serializers.ValidationError({"erro": "Envie somente o status do item."})
+            raise serializers.ValidationError({
+                "erro": "Envie somente o status do item."
+            })
+
+        status_atual = self.instance.status
+        novo_status = attrs.get("status")
+
+        transicoes_permitidas = {
+            ItensPedido.Status.EM_PREPARO: [
+                ItensPedido.Status.PRONTO,
+            ],
+            ItensPedido.Status.PRONTO: [
+                ItensPedido.Status.ENTREGUE,
+            ],
+            ItensPedido.Status.ENTREGUE: [],
+        }
+
+        if novo_status not in transicoes_permitidas[status_atual]:
+            raise serializers.ValidationError({
+                "status": (
+                    f"Não é permitido alterar o status de "
+                    f"{status_atual} para {novo_status}."
+                )
+            })
+
         return attrs
 
 
@@ -425,6 +447,7 @@ class ItemComandaSerializer(serializers.ModelSerializer):
         fields = [
             "id", "nome", "quantidade", "preco_unitario", "preco_original",
             "desconto_unitario", "promocao_aplicada", "nome_promocao_registrada", "subtotal",
+            "status",
         ]
         read_only_fields = fields
 
@@ -445,6 +468,28 @@ class PedidoComandaSerializer(serializers.ModelSerializer): #junta os itens de c
         model = Pedido
         fields = ["id", "data_pedido", "concluido", "itens"]
 
+class SolicitacaoSerializer(serializers.ModelSerializer):
+    comanda = serializers.PrimaryKeyRelatedField(queryset=Comanda.objects.filter(ativa=True))
+    mesa = serializers.IntegerField(
+        source='comanda.mesa_id',
+        read_only=True,
+    )
+    class Meta:
+        model = Solicitacao
+        fields = [
+            'id',
+            'tipo',
+            'status',
+            'data_solicitacao',
+            'comanda',
+            'mesa',
+        ]
+        read_only_fields = [
+            'id',
+            'status',
+            'data_solicitacao',
+            'mesa',
+        ]
 
 class ComandaConsultaSerializer(serializers.ModelSerializer):
     mesa = serializers.IntegerField(source="mesa_id", read_only=True)
