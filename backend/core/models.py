@@ -1,5 +1,6 @@
 from django.db import models
 from django.db.models import CheckConstraint, Q, UniqueConstraint
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils import timezone
 # Create your models here.
@@ -53,29 +54,52 @@ class Gerente(AbstractUser):
 
 
 
-class Garcom(models.Model):
-    id = models.BigAutoField(primary_key=True)  # id_garcom~
+class Funcionario(models.Model):
+    """Usuário interno cadastrado pelo gerente: garçom, cozinha ou bar."""
+
+    class Cargo(models.TextChoices):
+        GARCOM = 'GARCOM', 'Garçom'
+        COZINHA = 'COZINHA', 'Cozinha'
+        BAR = 'BAR', 'Bar'
+
+    id = models.BigAutoField(primary_key=True)  # id_funcionario
     data_efetivacao = models.DateTimeField(auto_now_add=True)
     nome = models.CharField(max_length=50)
     tel = models.CharField(max_length=15, unique=True)
     cpf = models.CharField(max_length=11, unique=True)
     salario = models.DecimalField(max_digits=10, decimal_places=2)
+    cargo = models.CharField(max_length=10, choices=Cargo.choices, default=Cargo.GARCOM)
+    # Guarda somente o hash da senha. Vazio significa que o gerente ainda não definiu uma.
+    senha = models.CharField(max_length=128, blank=True, default='')
+    # Funcionário inativo continua no histórico, mas não consegue entrar no sistema.
+    ativo = models.BooleanField(default=True)
     gerente = models.ForeignKey(
         Gerente,
         on_delete=models.PROTECT,
-        related_name='garcons',
-        db_column='id_gerente',  
+        related_name='funcionarios',
+        db_column='id_gerente',
     )
 
+    # O Django REST Framework consulta este atributo para saber se há alguém logado.
+    is_authenticated = True
+
     class Meta:
-        db_table = 'garcom'
+        db_table = 'funcionario'
         ordering = ['nome']
         constraints = [
-            CheckConstraint(check=Q(salario__gte=0), name='garcom_salario_nao_negativo'),
+            CheckConstraint(check=Q(salario__gte=0), name='funcionario_salario_nao_negativo'),
         ]
 
     def __str__(self):
-        return self.nome
+        return f'{self.nome} ({self.get_cargo_display()})'
+
+    def definir_senha(self, senha):
+        self.senha = make_password(senha)
+
+    def conferir_senha(self, senha):
+        if not self.senha:
+            return False
+        return check_password(senha, self.senha)
 
 
 class Mesa(models.Model):
@@ -108,7 +132,7 @@ class Mesa(models.Model):
         db_column='id_gerente',
     )
     garcom = models.ForeignKey(
-        Garcom,
+        Funcionario,
         on_delete=models.PROTECT,
         related_name='mesas',
         db_column='id_garcom',
