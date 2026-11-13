@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 from .models import (
     Gerente, Funcionario, Mesa, Cozinha, Categoria, Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao, Reserva)
 from decimal import Decimal
@@ -32,9 +33,12 @@ class CategoriaSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'nome': {
-                'error_messages': {
-                    'unique': "Já existe uma categoria cadastrada com este nome."
-                }
+                'validators': [
+                    UniqueValidator(
+                        queryset=Categoria.objects.all(),
+                        message="Já existe uma categoria cadastrada com este nome.",
+                    ),
+                ],
             }
         }
 
