@@ -535,3 +535,24 @@ class ComandaConsultaSerializer(serializers.ModelSerializer):
                 total += item_pedido.preco * item_pedido.quantidade
 
         return f"{total:.2f}"
+
+
+class HistoricoComandaSerializer(serializers.ModelSerializer):
+    mesa_numero = serializers.IntegerField(source="mesa.id", read_only=True)
+    garcom_nome = serializers.CharField(source="garcom.nome", read_only=True, default="Não registrado")
+    pedidos = PedidoComandaSerializer(many=True, read_only=True)
+    total = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comanda
+        fields = [
+            "id", "cpf", "telefone", "mesa_numero", "garcom_nome", 
+            "data_abertura", "data_fechamento", "pedidos", "total"
+        ]
+
+    def get_total(self, obj):
+        total = Decimal("0.00")
+        for pedido in obj.pedidos.all():
+            for item_pedido in pedido.itens_pedido.all():
+                total += item_pedido.preco * item_pedido.quantidade
+        return f"{total:.2f}"

@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
 from rest_framework.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from decimal import Decimal
 from rest_framework.decorators import action
 from django.contrib.auth.hashers import check_password
@@ -24,7 +25,7 @@ from .serializers import (
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
     FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer,
-    ItemCardapioSerializer, EnviarPedidoSerializer, SolicitacaoSerializer)
+    ItemCardapioSerializer, EnviarPedidoSerializer, SolicitacaoSerializer, HistoricoComandaSerializer)
 from .permissions import PermissoesPromocao
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
@@ -34,6 +35,7 @@ from .services.pedidos import enviar_pedido
 from .services.mesas import (
     erro_de_reserva_na_abertura, juntar_mesas, tem_comanda_ativa,
 )
+
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -654,3 +656,43 @@ class ComandasGarcomView(APIView):
         )
 
         return Response(serializer.data)
+
+# Não esqueça de importar o HistoricoComandaSerializer lá no topo
+from django.utils.dateparse import parse_date
+
+class HistoricoComandasView(APIView):
+    # Apenas gerentes devem acessar o histórico completo
+    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+
+    def get(self, request):
+        # Traz apenas comandas inativas (fechadas)
+        comandas = Comanda.objects.filter(ativa=False).select_related('mesa', 'garcom').prefetch_related('pedidos__itens_pedido__item')
+
+        # Captura os filtros da URL (ex: ?data_inicio=2023-01-01&mesa=5)
+        data_inicio = request.query_params.get('data_inicio')
+        data_fim = request.query_params.get('data_fim')
+        mesa_id = request.query_params.get('mesa')
+        garcom_id = request.query_params.get('garcom')
+
+        # Aplica os filtros
+        if data_inicio:
+            parsed_inicio = parse_date(data_inicio)
+            if parsed_inicio:
+                comandas = comandas.filter(data_fechamento__date__gte=parsed_inicio)
+        
+        if data_fim:
+            parsed_fim = parse_date(data_fim)
+            if parsed_fim:
+                comandas = comandas.filter(data_fechamento__date__lte=parsed_fim)
+
+        if mesa_id:
+            comandas = comandas.filter(mesa_id=mesa_id)
+
+        if garcom_id:
+            comandas = comandas.filter(garcom_id=garcom_id)
+
+        # Ordena das mais recentes para as mais antigas
+        comandas = comandas.order_by('-data_fechamento')
+
+        serializer = HistoricoComandaSerializer(comandas, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

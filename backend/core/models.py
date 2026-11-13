@@ -169,6 +169,7 @@ class Comanda(models.Model):
     telefone = models.CharField(max_length=15)
     ativa = models.BooleanField(default=True)
     data_abertura = models.DateTimeField(auto_now_add=True)
+    data_fechamento = models.DateTimeField(null=True, blank=True)
     mesa = models.ForeignKey(
         Mesa,
         on_delete=models.PROTECT,
@@ -176,9 +177,24 @@ class Comanda(models.Model):
         db_column='id_mesa',
     )
 
+    # Add garçom da comanda para proteger o histórico
+    garcom = models.ForeignKey(
+        Garcom,
+        on_delete=models.PROTECT,
+        related_name='comandas_atendidas',
+        db_column='id_garcom',
+        null=True, 
+        blank=True
+    )
     class Meta:
         db_table = 'comanda'
         ordering = ['-data_abertura']
+        # Índices para garantir consultas rápidas no histórico
+        indexes = [
+            models.Index(fields=['ativa', 'data_fechamento']),
+            models.Index(fields=['mesa']),
+            models.Index(fields=['garcom']),
+        ]
 
         # A abertura valida a comanda ativa com a mesa bloqueada na transação.
         # MySQL não suporta UniqueConstraint com condition.
