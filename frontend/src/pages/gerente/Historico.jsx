@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 
 // Funções para formatar data e hora separadamente
 function formatarApenasData(dataIso) {
@@ -48,36 +48,37 @@ export default function Historico() {
   // Estado para o Modal de Detalhes
   const [comandaSelecionada, setComandaSelecionada] = useState(null);
 
-  const buscarHistorico = useCallback(async () => {
-    setCarregando(true);
-    setErroApi(null);
+  // Mudar este número faz a busca rodar de novo (botão de atualizar).
+  const [recarga, setRecarga] = useState(0);
 
-    try {
-      const params = new URLSearchParams();
-      if (filtros.dataInicio) params.append("data_inicio", filtros.dataInicio);
-      if (filtros.dataFim) params.append("data_fim", filtros.dataFim);
-      if (filtros.mesa) params.append("mesa", filtros.mesa);
-      if (filtros.garcom) params.append("garcom", filtros.garcom);
-
-      const resposta = await fetch(`/api/historico/comandas/?${params.toString()}`);
-      
-      if (resposta.ok) {
-        const dados = await resposta.json();
-        setComandas(dados.results ? dados.results : dados);
-      } else {
-        setErroApi(`Erro no servidor ao carregar o histórico (${resposta.status}).`);
-      }
-    } catch (erro) {
-      setErroApi("Erro de Conexão. O React não conseguiu alcançar o Django.");
-    } finally {
-      setCarregando(false);
-    }
-  }, [filtros]);
-
-  // Busca os dados ao carregar a tela pela primeira vez
+  // Busca o histórico ao abrir a tela e sempre que os filtros mudam.
   useEffect(() => {
+    async function buscarHistorico() {
+      try {
+        const params = new URLSearchParams();
+        if (filtros.dataInicio) params.append("data_inicio", filtros.dataInicio);
+        if (filtros.dataFim) params.append("data_fim", filtros.dataFim);
+        if (filtros.mesa) params.append("mesa", filtros.mesa);
+        if (filtros.garcom) params.append("garcom", filtros.garcom);
+
+        const resposta = await fetch(`/api/historico/comandas/?${params.toString()}`);
+
+        if (resposta.ok) {
+          const dados = await resposta.json();
+          setComandas(dados.results ? dados.results : dados);
+          setErroApi(null);
+        } else {
+          setErroApi(`Erro no servidor ao carregar o histórico (${resposta.status}).`);
+        }
+      } catch {
+        setErroApi("Erro de Conexão. O React não conseguiu alcançar o Django.");
+      } finally {
+        setCarregando(false);
+      }
+    }
+
     buscarHistorico();
-  }, [buscarHistorico]);
+  }, [filtros, recarga]);
 
   const handleChangeFiltro = (e) => {
     const { name, value } = e.target;
@@ -163,7 +164,7 @@ export default function Historico() {
             Limpar
           </button>
           <button 
-            onClick={buscarHistorico}
+            onClick={() => setRecarga((atual) => atual + 1)}
             className="bg-hover hover:opacity-90 text-header px-6 py-2.5 rounded-md font-bold shadow-sm transition-opacity cursor-pointer w-full lg:w-auto"
           >
             Filtrar
