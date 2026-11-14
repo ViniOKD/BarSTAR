@@ -1,7 +1,7 @@
-import re
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 from .models import (
-    Gerente, Garcom, Mesa, Cozinha, Categoria, Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao, Reserva)
+    Gerente, Funcionario, Mesa, Cozinha, Categoria, Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao, Reserva)
 from decimal import Decimal
 import phonenumbers
 from django.db.models import Q
@@ -12,6 +12,11 @@ from django.utils import timezone
 from .services.promocoes import salvar_promocao
 from .services.dar_preco import obter_precos_atuais
 from .services.mesas import status_atual
+from .permissoes import tem_permissao
+from .validadores import validar_cpf, validar_telefone
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as ErroDeValidacaoDjango
+from rest_framework.exceptions import PermissionDenied
 # Os serializers convertem dados do banco de dados para formato JSON
 
 
@@ -28,9 +33,12 @@ class CategoriaSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'nome': {
-                'error_messages': {
-                    'unique': "Já existe uma categoria cadastrada com este nome."
-                }
+                'validators': [
+                    UniqueValidator(
+                        queryset=Categoria.objects.all(),
+                        message="Já existe uma categoria cadastrada com este nome.",
+                    ),
+                ],
             }
         }
 
@@ -40,38 +48,110 @@ class GerenteSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class GarcomSerializer(serializers.ModelSerializer):
-    senha = serializers.CharField(
-        write_only=True,
-        required=False,
-        allow_blank=False
-    )
+class FuncionarioSerializer(serializers.ModelSerializer):
+    # A senha só entra; nunca é devolvida pela API.
+    senha = serializers.CharField(write_only=True, required=False, trim_whitespace=False)
 
     class Meta:
-        model = Garcom
-        fields = '__all__'
+        model = Funcionario
+        fields = ['id', 'nome', 'cpf', 'tel', 'salario', 'cargo', 'ativo', 'senha', 'data_efetivacao']
+        # Ativar e inativar têm rotas próprias.
+        read_only_fields = ['id', 'ativo', 'data_efetivacao']
+        extra_kwargs = {
+            # A repetição de CPF e telefone é conferida abaixo, com mensagens próprias.
+            'cpf': {'validators': []},
+            'tel': {'validators': []},
+            'salario': {'min_value': Decimal("0")},
+        }
+
+    def validate_cpf(self, value):
+        cpf = validar_cpf(value)
+
+        # O CPF é o login do funcionário, então não muda depois do cadastro.
+        if self.instance is not None and cpf != self.instance.cpf:
+            raise serializers.ValidationError("O CPF não pode ser alterado.")
+
+        if self.outros_funcionarios().filter(cpf=cpf).exists():
+            raise serializers.ValidationError("Já existe um funcionário com este CPF.")
+
+        # Gerente e funcionário entram pela mesma tela; o CPF não pode se repetir.
+        if Gerente.objects.filter(cpf=cpf).exists():
+            raise serializers.ValidationError("Este CPF já pertence a um gerente.")
+
+        return cpf
+
+    def validate_tel(self, value):
+        telefone = validar_telefone(value)
+
+        if self.outros_funcionarios().filter(tel=telefone).exists():
+            raise serializers.ValidationError("Já existe um funcionário com este telefone.")
+
+        return telefone
+
+    def outros_funcionarios(self):
+        # Na edição, o próprio funcionário não conta como repetido.
+        funcionarios = Funcionario.objects.all()
+        if self.instance is not None:
+            funcionarios = funcionarios.exclude(pk=self.instance.pk)
+        return funcionarios
+
+    def validate_senha(self, value):
+        # Usa as regras de senha configuradas no Django (tamanho mínimo, senha comum etc.).
+        try:
+            validate_password(value)
+        except ErroDeValidacaoDjango as erro:
+            raise serializers.ValidationError(erro.messages)
+        return value
+
+    def validate(self, attrs):
+        if self.instance is None and not attrs.get('senha'):
+            raise serializers.ValidationError({"senha": "Informe uma senha para o funcionário."})
+
+        self.validar_troca_de_cargo(attrs)
+        return attrs
+
+    def validar_troca_de_cargo(self, attrs):
+        # Um garçom com mesas não pode virar cozinha ou bar: as mesas ficariam sem garçom.
+        funcionario = self.instance
+        if funcionario is None or 'cargo' not in attrs:
+            return
+
+        deixa_de_ser_garcom = (
+            funcionario.cargo == Funcionario.Cargo.GARCOM
+            and attrs['cargo'] != Funcionario.Cargo.GARCOM
+        )
+        if deixa_de_ser_garcom and funcionario.mesas.exists():
+            raise serializers.ValidationError({
+                "cargo": "Este garçom ainda é responsável por mesas. Realoque as mesas antes de mudar o cargo.",
+            })
 
     def create(self, validated_data):
-        senha = validated_data.pop("senha", None)
-
-        garcom = Garcom.objects.create(**validated_data)
-
-        if senha:
-            garcom.senha = make_password(senha)
-            garcom.save(update_fields=["senha"])
-
-        return garcom
+        senha = validated_data.pop('senha')
+        funcionario = Funcionario(**validated_data)
+        funcionario.definir_senha(senha)
+        funcionario.save()
+        return funcionario
 
     def update(self, instance, validated_data):
-        senha = validated_data.pop("senha", None)
+        # Na edição a senha é opcional: só troca se o gerente informar uma nova.
+        senha = validated_data.pop('senha', None)
 
-        instance = super().update(instance, validated_data)
+        for campo, valor in validated_data.items():
+            setattr(instance, campo, valor)
 
         if senha:
-            instance.senha = make_password(senha)
-            instance.save(update_fields=["senha"])
+            instance.definir_senha(senha)
 
+        instance.save()
         return instance
+
+
+class GarcomDaMesaSerializer(serializers.ModelSerializer):
+    # Mostra só o necessário do garçom responsável pela mesa.
+    class Meta:
+        model = Funcionario
+        fields = ['id', 'nome']
+
 
 class ReservaSerializer(serializers.ModelSerializer):
     mesas_agrupadas_ids = serializers.PrimaryKeyRelatedField(
@@ -124,15 +204,12 @@ class ReservaSerializer(serializers.ModelSerializer):
     
 
 class MesaSerializer(serializers.ModelSerializer):
-    garcom = GarcomSerializer(read_only=True)
+    garcom = GarcomDaMesaSerializer(read_only=True)
     garcom_id = serializers.PrimaryKeyRelatedField(
-            queryset=Garcom.objects.all(),
+            # Só garçons ativos podem ser responsáveis por uma mesa.
+            queryset=Funcionario.objects.filter(cargo=Funcionario.Cargo.GARCOM, ativo=True),
+            error_messages={"does_not_exist": "Selecione um garçom ativo."},
             source="garcom",
-            write_only=True,
-        )
-    gerente_id = serializers.PrimaryKeyRelatedField(
-            queryset=Gerente.objects.all(),
-            source="gerente",
             write_only=True,
         )
 
@@ -158,7 +235,8 @@ class MesaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mesa
         fields = '__all__'
-        read_only_fields = ['gerente', 'gerente_id']
+        # O gerente da mesa é quem está logado; a view preenche esse campo.
+        read_only_fields = ['gerente']
 
     def get_status_dinamico(self, obj):
         # Considera comanda aberta, agrupamento e reserva próxima do horário.
@@ -283,6 +361,15 @@ class ItensPedidoSerializer(serializers.ModelSerializer):
                 )
             })
 
+        # Cozinha e bar marcam como pronto; o garçom confirma a entrega.
+        permissao_por_status = {
+            ItensPedido.Status.PRONTO: "atualizar_preparo",
+            ItensPedido.Status.ENTREGUE: "confirmar_entrega",
+        }
+        usuario = self.context["request"].user
+        if not tem_permissao(usuario, permissao_por_status[novo_status]):
+            raise PermissionDenied("Seu cargo não tem permissão para esta mudança de status.")
+
         return attrs
 
 
@@ -350,6 +437,11 @@ class PromocaoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Informe um percentual maior que zero e menor que 100."
             )
+
+        if round(value, 2) != value:
+            raise serializers.ValidationError(
+                "Informe o percentual com no máximo duas casas decimais."
+            )
         return value
 
     def get_situacao(self, obj):
@@ -395,8 +487,18 @@ class PromocaoSerializer(serializers.ModelSerializer):
 
         return promocao
 
+class MesaDoPedidoSerializer(serializers.ModelSerializer):
+    # A lista de pedidos é pública (garçom e cozinha não têm login),
+    # então mostra só o número da mesa e o nome do garçom.
+    garcom = serializers.CharField(source="garcom.nome", read_only=True)
+
+    class Meta:
+        model = Mesa
+        fields = ["id", "garcom"]
+
+
 class PedidoSerializer(serializers.ModelSerializer):
-    mesa = MesaSerializer(source='comanda.mesa', read_only=True)
+    mesa = MesaDoPedidoSerializer(source='comanda.mesa', read_only=True)
     cozinha = CozinhaSerializer(read_only=True)
     itens_pedido = ItensPedidoSerializer(many=True,read_only=True)
     class Meta:
@@ -430,36 +532,11 @@ class AbrirComandaSerializer(serializers.Serializer):
     telefone = serializers.CharField(max_length=15)
     # A mesa vem da URL (/mesas/<id>/abrir-comanda/) e é validada na view.
 
-    # Validação do CPF
     def validate_cpf(self, value):
-        cpf_numeros = re.sub(r'\D', '', value)
-        if len(cpf_numeros) != 11:
-            raise serializers.ValidationError("O CPF informado é inválido. Digite os 11 dígitos.")
-        if cpf_numeros == cpf_numeros[0] * 11:
-            raise serializers.ValidationError("O CPF informado é inválido.")
+        return validar_cpf(value)
 
-        digitos = [int(d) for d in cpf_numeros]
-
-        soma_d1 = sum(digitos[i] * (10 - i) for i in range(9))
-        resto_d1 = soma_d1 % 11
-        d1_esperado = 0 if resto_d1 < 2 else 11 - resto_d1
-        if digitos[9] != d1_esperado:
-            raise serializers.ValidationError("O CPF informado é inválido.")
-
-        soma_d2 = sum(digitos[i] * (11 - i) for i in range(10))
-        resto_d2 = soma_d2 % 11
-        d2_esperado = 0 if resto_d2 < 2 else 11 - resto_d2
-        if digitos[10] != d2_esperado:
-            raise serializers.ValidationError("O CPF informado é inválido.")
-
-        return cpf_numeros
-
-    # Validação do Telefone
     def validate_telefone(self, value):
-        tel_numeros = re.sub(r'\D', '', value)
-        if len(tel_numeros) < 10:
-            raise serializers.ValidationError("O número de telefone informado é inválido. Inclua o DDD.")
-        return tel_numeros
+        return validar_telefone(value)
 
 
 class ItemComandaSerializer(serializers.ModelSerializer):

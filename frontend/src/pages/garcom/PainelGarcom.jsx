@@ -8,53 +8,56 @@ export default function PainelGarcom() {
   const [erro, setErro] = useState("");
   const [mesaExpandida, setMesaExpandida] = useState(null);
 
-  async function buscarComandas() {
-    try {
-      const resposta = await requisicaoApi("/api/garcom/comandas/", {
-        cache: "no-store",
-      });
+  // Mudar este número faz a busca rodar de novo (botão "Tentar novamente").
+  const [tentativa, setTentativa] = useState(0);
 
-      const lista = Array.isArray(resposta)
-        ? resposta
-        : resposta.results ?? [];
-
-      const mesasFormatadas = lista.map((comanda) => ({
-        id: comanda.id,
-        numero: comanda.mesa,
-        comanda: comanda.id,
-
-        pedidos: (comanda.pedidos ?? []).map((pedido) => ({
-          id: pedido.id,
-          horario: pedido.data_pedido,
-
-          itens: (pedido.itens ?? []).map((item, indice) => ({
-            id: item.id ?? `${pedido.id}-${indice}`,
-            nome: item.nome ?? item.item?.nome ?? "Item sem nome",
-            quantidade: item.quantidade,
-            status: item.status,
-          })),
-        })),
-      }));
-
-      setMesas(mesasFormatadas);
-      setErro("");
-    } catch (erro) {
-      console.error("Erro ao buscar comandas:", erro);
-      setErro(
-        erro.message || "Não foi possível carregar suas comandas."
-      );
-    } finally {
-      setCarregando(false);
-    }
-  }
-
+  // Busca as comandas ao abrir a tela e repete a cada 5 segundos.
   useEffect(() => {
-    buscarComandas();
+    async function buscarComandas() {
+      try {
+        const resposta = await requisicaoApi("/api/garcom/comandas/", {
+          cache: "no-store",
+        });
 
+        const lista = Array.isArray(resposta)
+          ? resposta
+          : resposta.results ?? [];
+
+        const mesasFormatadas = lista.map((comanda) => ({
+          id: comanda.id,
+          numero: comanda.mesa,
+          comanda: comanda.id,
+
+          pedidos: (comanda.pedidos ?? []).map((pedido) => ({
+            id: pedido.id,
+            horario: pedido.data_pedido,
+
+            itens: (pedido.itens ?? []).map((item, indice) => ({
+              id: item.id ?? `${pedido.id}-${indice}`,
+              nome: item.nome ?? item.item?.nome ?? "Item sem nome",
+              quantidade: item.quantidade,
+              status: item.status,
+            })),
+          })),
+        }));
+
+        setMesas(mesasFormatadas);
+        setErro("");
+      } catch (erro) {
+        console.error("Erro ao buscar comandas:", erro);
+        setErro(
+          erro.message || "Não foi possível carregar suas comandas."
+        );
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+    buscarComandas();
     const intervalo = setInterval(buscarComandas, 5000);
 
     return () => clearInterval(intervalo);
-  }, []);
+  }, [tentativa]);
 
   const obterEstiloStatus = (status) => {
     switch (status) {
@@ -145,7 +148,7 @@ export default function PainelGarcom() {
         >
           {erro}
           <button
-            onClick={buscarComandas}
+            onClick={() => setTentativa((atual) => atual + 1)}
             className="ml-2 font-semibold underline"
           >
             Tentar novamente

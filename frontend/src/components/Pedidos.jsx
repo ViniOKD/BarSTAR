@@ -7,7 +7,7 @@ export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, o
   const dialogoRef = useRef(null);
   const ocupado = atualizando || enviando;
   const indisponivel = itens.some((item) => item.disponivel === false);
-  const total = itens.reduce((soma, item) => soma + BigInt(paraCentavos(item.preco_atual)) * BigInt(item.quantidade), 0n);
+  const total = itens.reduce((soma, item) => soma + paraCentavos(item.preco_atual) * item.quantidade, 0);
 
   useEffect(() => {
     if (!aberto) return;
@@ -156,7 +156,7 @@ export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, o
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <span className="font-bold text-[#996315]">
                       {formatarPreco(
-                        deCentavos(BigInt(paraCentavos(item.preco_atual)) * BigInt(item.quantidade))
+                        deCentavos(paraCentavos(item.preco_atual) * item.quantidade)
                       )}
                     </span>
 

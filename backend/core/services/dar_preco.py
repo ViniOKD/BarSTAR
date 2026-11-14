@@ -1,10 +1,17 @@
+from decimal import ROUND_HALF_UP, Decimal
+
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from core.models import ItensPromocao
 
+CENTAVO = Decimal("0.01")
+
+
 def calcular_preco_final(preco_original, desconto_percentual):
-    original = float(preco_original)
-    percentual = float(desconto_percentual)
+    # Decimal faz a conta exata com dinheiro; float erraria em valores como 0.1 + 0.2.
+    # O percentual passa por str porque é guardado como float no banco.
+    original = Decimal(preco_original)
+    percentual = Decimal(str(desconto_percentual))
 
     if original <= 0:
         raise ValueError("Preço normal inválido.")
@@ -12,7 +19,8 @@ def calcular_preco_final(preco_original, desconto_percentual):
     if not 0 < percentual < 100:
         raise ValueError("O percentual deve ser maior que zero e menor que 100.")
 
-    final = round(original * (1 - percentual / 100), 2)
+    # Arredonda para centavos; meio centavo sobe (ex.: 2,675 vira 2,68).
+    final = (original * (100 - percentual) / 100).quantize(CENTAVO, rounding=ROUND_HALF_UP)
 
     if not 0 < final < original:
         raise ValueError("O desconto não produz um preço promocional válido.")

@@ -8,6 +8,8 @@ import PromocoesCliente from "./pages/PromocoesCliente";
 import Configuracoes from "./pages/Configuracoes";
 import PainelGerente from "./pages/PainelGerente";
 import { SidebarGerente } from "./components/SidebarGerente";
+import RotaProtegida from "./components/RotaProtegida";
+import Preparo from "./pages/Preparo";
 import Usuarios from "./pages/gerente/Usuarios";
 import Mesas from "./pages/gerente/Mesas";
 import Categorias from "./pages/gerente/Categorias";
@@ -21,7 +23,6 @@ import PainelGarcom from "./pages/garcom/PainelGarcom";
 import SolicitacoesGarcom from "./pages/garcom/SolicitacoesGarcom";
 import PedidosGarcom from "./pages/garcom/PedidosGarcom";
 import { SidebarGarcom } from "./components/SidebarGarcom";
-import LoginGarcom from "./pages/garcom/LoginGarcom";
 
 const telasGerente = {
   "/gerente": <PainelGerente />,
@@ -328,33 +329,38 @@ useEffect(() => {
     );
   }
 
-  if (paginaAtual === "/configuracoes") {
+  // O endereço antigo do login do garçom leva ao login único.
+  if (paginaAtual === "/configuracoes" || paginaAtual === "/login/garcom") {
     return <Configuracoes />;
-  }
-
-  if (paginaAtual === "/login/garcom") {
-    return <LoginGarcom />;
   }
   
   if (Object.hasOwn(telasGerente, paginaAtual)) {
     return (
-      <>
+      <RotaProtegida cargos={["GERENTE"]}>
         <SidebarGerente paginaAtual={paginaAtual}  />
         <main className="ml-64 min-h-screen bg-fundo p-8">
           {telasGerente[paginaAtual]}
         </main>
-      </>
+      </RotaProtegida>
     );
   }
 
   if (Object.hasOwn(telasGarcom, paginaAtual)) {
     return (
-      <>
+      <RotaProtegida cargos={["GARCOM", "GERENTE"]}>
         <SidebarGarcom paginaAtual={paginaAtual} quantidadePendentes={solicitacoesPendentes.length} quantidadePedidosPendentes={pedidosPendentes}/>
         <main className="ml-64 min-h-screen bg-fundo p-8">
           {telasGarcom[paginaAtual]}
         </main>
-      </>
+      </RotaProtegida>
+    );
+  }
+
+  if (paginaAtual === "/preparo") {
+    return (
+      <RotaProtegida cargos={["COZINHA", "BAR"]}>
+        <Preparo />
+      </RotaProtegida>
     );
   }
 

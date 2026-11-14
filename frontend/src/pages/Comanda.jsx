@@ -10,8 +10,8 @@ export default function Comanda({ itens = [] }) {
   const [erroFechamento, setErroFechamento] = useState("");
 
   const total = itens.reduce(
-    (soma, item) => soma + BigInt(paraCentavos(item.preco)) * BigInt(item.quantidade),
-    0n
+    (soma, item) => soma + paraCentavos(item.preco) * item.quantidade,
+    0
   );
 
   // Envia a solicitação de fechamento ao backend.
@@ -126,7 +126,7 @@ export default function Comanda({ itens = [] }) {
                 <p className="text-sm text-header/70">Subtotal</p>
                 <p className="font-bold text-[#996315]">
                   {formatarPreco(
-                    deCentavos(BigInt(paraCentavos(registro.preco)) * BigInt(registro.quantidade))
+                    deCentavos(paraCentavos(registro.preco) * registro.quantidade)
                   )}
                 </p>
               </div>

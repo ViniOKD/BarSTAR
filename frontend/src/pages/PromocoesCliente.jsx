@@ -139,7 +139,7 @@ export default function PromocoesCliente({
           return null;
         });
 
-      } catch (e) {
+      } catch {
         if (!controller.signal.aborted) {
           setErro("Não foi possível carregar as promoções. Tentando novamente...");
         }
