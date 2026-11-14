@@ -7,6 +7,7 @@ GERENTE = "GERENTE"
 # O que cada cargo pode fazer. O gerente pode tudo, por isso não aparece aqui.
 PERMISSOES_POR_CARGO = {
     Funcionario.Cargo.GARCOM: {
+        "ver_comandas",
         "ver_pedidos",
         "confirmar_entrega",
         "ver_solicitacoes",

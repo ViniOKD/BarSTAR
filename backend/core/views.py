@@ -4,16 +4,16 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.contrib.auth import logout
 from rest_framework import viewsets, status, mixins, viewsets, status
-
 from rest_framework.decorators import action
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from decimal import Decimal
 from rest_framework.decorators import action
-
+from rest_framework.permissions import AllowAny
 from .services.dar_preco import calcular_preco_final
 from .models import (
     Gerente, Funcionario, Mesa, Cozinha, Categoria, Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao, Reserva)
@@ -22,7 +22,7 @@ from .serializers import (
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
     FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer,
-    ItemCardapioSerializer, EnviarPedidoSerializer, SolicitacaoSerializer)
+    ItemCardapioSerializer, EnviarPedidoSerializer, SolicitacaoSerializer, HistoricoComandaSerializer)
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
 )
@@ -37,6 +37,7 @@ from .permissoes import (
 from .services.mesas import (
     erro_de_reserva_na_abertura, juntar_mesas, tem_comanda_ativa,
 )
+
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -449,6 +450,22 @@ class PromocaoViewSet(viewsets.ModelViewSet):
         # Executa a remoção lógica por meio da função de serviço.
         remover_promocao(promocao_id=instance.pk)
 
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def ativas(self, request):
+        agora = timezone.now()
+        
+        promocoes_vigentes = self.get_queryset().filter(
+            data_inicio__lte=agora,
+            data_fim__gte=agora
+        )
+        
+        serializer = self.get_serializer(
+            promocoes_vigentes, 
+            many=True, 
+            context=self.get_serializer_context()
+        )
+        return Response(serializer.data)
+    
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemCardapioSerializer
@@ -699,3 +716,57 @@ class LoginView(APIView):
             "mensagem": "Login realizado com sucesso.",
             "usuario": dados_do_usuario(usuario),
         })
+
+
+class ComandasGarcomView(APIView):
+    # Comandas abertas no painel do garçom.
+    permission_classes = [PermissaoDoCargo]
+    permissoes_por_metodo = {"GET": "ver_comandas"}
+
+    def get(self, request):
+        comandas = Comanda.objects.filter(ativa=True)
+
+        # O garçom vê só as comandas das suas mesas; o gerente vê todas.
+        if cargo_de(request.user) == Funcionario.Cargo.GARCOM:
+            comandas = comandas.filter(mesa__garcom=request.user)
+
+        comandas = comandas.prefetch_related(
+            "pedidos__itens_pedido__item"
+        ).order_by("id")
+
+        serializer = ComandaConsultaSerializer(comandas, many=True)
+        return Response(serializer.data)
+
+
+class HistoricoComandasView(APIView):
+    # O histórico mostra CPF e telefone dos clientes: só o gerente consulta.
+    permission_classes = [SomenteGerente]
+
+    def get(self, request):
+        comandas = Comanda.objects.all()
+
+        # Captura os parâmetros
+        data_inicio = request.query_params.get('data_inicio')
+        data_fim = request.query_params.get('data_fim')
+        mesa = request.query_params.get('mesa')
+        garcom = request.query_params.get('garcom')
+
+        # APLICA OS FILTROS USANDO data_abertura
+        if data_inicio:
+            comandas = comandas.filter(data_abertura__gte=data_inicio)
+            
+        if data_fim:
+            comandas = comandas.filter(data_abertura__lte=f"{data_fim} 23:59:59") #mudar isso quando feito o fechamento da comanda
+            
+        if mesa:
+            comandas = comandas.filter(mesa__id=mesa) 
+            
+        if garcom:
+            comandas = comandas.filter(garcom__nome__icontains=garcom)
+
+        # ORDENA PELA ABERTURA MAIS RECENTE
+        comandas = comandas.order_by('-data_abertura') 
+        
+        serializer = HistoricoComandaSerializer(comandas, many=True)
+        
+        return Response(serializer.data)

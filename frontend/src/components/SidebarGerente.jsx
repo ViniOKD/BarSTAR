@@ -9,7 +9,7 @@ const linksPrincipais = [
   { nome: "Categorias", href: "/gerente/categorias" },
   { nome: "Produtos", href: "/gerente/produtos" },
   { nome: "Promoções", href: "/gerente/promocoes" },
-  { nome: "Comandas", href: "/gerente/comandas" },
+  { nome: "Histórico", href: "/gerente/historico" },
 ];
 
 const estiloLink =

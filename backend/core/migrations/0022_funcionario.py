@@ -5,10 +5,11 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     # A tabela de garçons vira a tabela de funcionários (garçom, cozinha e bar).
-    # Os garçons já cadastrados continuam com o cargo GARCOM e sem senha definida.
+    # Os garçons já cadastrados continuam com o cargo GARCOM.
+    # A coluna de senha já foi criada pela migration 0019_garcom_senha.
 
     dependencies = [
-        ("core", "0018_merge_notificacoes_correcoes"),
+        ("core", "0021_comanda_data_fechamento_comanda_garcom_and_more"),
     ]
 
     operations = [
@@ -32,11 +33,6 @@ class Migration(migrations.Migration):
                 default="GARCOM",
                 max_length=10,
             ),
-        ),
-        migrations.AddField(
-            model_name="funcionario",
-            name="senha",
-            field=models.CharField(blank=True, default="", max_length=128),
         ),
         migrations.AddField(
             model_name="funcionario",
