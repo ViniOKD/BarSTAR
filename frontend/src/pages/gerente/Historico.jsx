@@ -284,12 +284,12 @@ export default function Historico() {
                     </tr>
                   </thead>
                   <tbody>
-                    {comandaSelecionada.pedidos?.flatMap(pedido => pedido.itens_pedido).length > 0 ? (
+                    {comandaSelecionada.pedidos?.flatMap(pedido => pedido.itens).length > 0 ? (
                         comandaSelecionada.pedidos?.map((pedido) => 
-                        pedido.itens_pedido?.map((item) => (
+                        pedido.itens?.map((item) => (
                             <tr key={item.id} className="border-b border-gray-100 last:border-0 hover:bg-fundo transition-colors">
                             <td className="px-4 py-3 font-semibold">
-                                {item.nome_item_registrado || "Item Removido"}
+                                {item.nome || "Item Removido"}
                                 {item.nome_promocao_registrada && (
                                 <span className="block text-xs text-hover font-bold mt-0.5">
                                     Promoção: {item.nome_promocao_registrada}
@@ -297,9 +297,9 @@ export default function Historico() {
                                 )}
                             </td>
                             <td className="px-4 py-3 text-center font-medium">{item.quantidade}</td>
-                            <td className="px-4 py-3 text-right font-medium">R$ {Number(item.preco).toFixed(2)}</td>
+                            <td className="px-4 py-3 text-right font-medium">R$ {Number(item.preco_unitario).toFixed(2)}</td>
                             <td className="px-4 py-3 text-right font-bold">
-                                R$ {(Number(item.preco) * item.quantidade).toFixed(2)}
+                                R$ {Number(item.subtotal).toFixed(2)}
                             </td>
                             </tr>
                         ))
