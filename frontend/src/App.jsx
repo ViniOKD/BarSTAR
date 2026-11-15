@@ -18,8 +18,8 @@ import { requisicaoApi } from "./utils/api";
 import { atualizarPrecosCarrinho, aplicarPrecosAlterados, dadosEnvioPedido } from "./utils/carrinho";
 import PainelGarcom from "./pages/garcom/PainelGarcom";
 import SolicitacoesGarcom from "./pages/garcom/SolicitacoesGarcom";
-import PedidosGarcom from "./pages/garcom/PedidosGarcom";
 import { SidebarGarcom } from "./components/SidebarGarcom";
+import FecharConta from "./pages/garcom/FecharConta";
 
 const telasGerente = {
   "/gerente": <PainelGerente />,
@@ -33,8 +33,6 @@ const telasGerente = {
 
 const telasGarcom = {
   "/garcom": <PainelGarcom />,
-  "/garcom/solicitacoes": <SolicitacoesGarcom />,
-  "/garcom/pedidos": <PedidosGarcom />,
 };
 
 export default function App() {
@@ -50,6 +48,7 @@ export default function App() {
   const [erroPedido, setErroPedido] = useState("");
   const [avisoPedido, setAvisoPedido] = useState("");
   const [solicitacoesPendentes, setSolicitacoesPendentes] = useState([]);
+  const [solicitacaoFechamento, setSolicitacaoFechamento] = useState(null);
   const operacaoPedido = useRef(false);
 
   async function abrirPedidos() {
@@ -164,41 +163,51 @@ export default function App() {
     }
   }
   
-async function chamarGarcom() {
-  try {
-    const idComanda = localStorage.getItem("id_comanda");
+  async function chamarGarcom() {
+    try {
+      const idComanda = localStorage.getItem("id_comanda");
 
-    if (!idComanda) {
-      alert("Não foi possível identificar a comanda.");
-      return;
+      if (!idComanda) {
+        alert("Não foi possível identificar a comanda.");
+        return;
+      }
+
+      const resposta = await fetch("/api/solicitacoes/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tipo: "ATENDIMENTO",
+          comanda: Number(idComanda),
+        }),
+      });
+
+      const dados = await resposta.json();
+
+      if (!resposta.ok) {
+        throw new Error(
+          dados.erro ||
+          dados.detail ||
+          "Não foi possível chamar o garçom."
+        );
+      }
+
+      alert("Solicitação enviada! Aguarde o garçom.");
+    } catch (erro) {
+      alert(erro.message || "Erro ao conectar com o servidor.");
     }
-
-    const resposta = await fetch("/api/solicitacoes/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        tipo: "ATENDIMENTO",
-        comanda: Number(idComanda),
-      }),
-    });
-
-    const dados = await resposta.json();
-
-    if (!resposta.ok) {
-      throw new Error(
-        dados.erro ||
-        dados.detail ||
-        "Não foi possível chamar o garçom."
-      );
-    }
-
-    alert("Solicitação enviada! Aguarde o garçom.");
-  } catch (erro) {
-    alert(erro.message || "Erro ao conectar com o servidor.");
   }
-}
+
+  function abrirTelaFechamento(solicitacao) {
+    setSolicitacaoFechamento(solicitacao);
+    setPaginaAtual("/garcom/fechar-conta");
+  }
+
+  function voltarParaSolicitacoes() {
+    setSolicitacaoFechamento(null);
+    setPaginaAtual("/garcom/solicitacoes");
+  }
 
 
   // consulta a API, qunado a tela de comanda é aberta
@@ -251,40 +260,42 @@ async function chamarGarcom() {
     return () => clearInterval(intervalo);
   }, [paginaAtual]);
 
-useEffect(() => {
-  if (!Object.hasOwn(telasGarcom, paginaAtual)) return;
+  useEffect(() => {
+    const estaNaAreaGarcom =
+      Object.hasOwn(telasGarcom, paginaAtual) ||
+      paginaAtual === "/garcom/solicitacoes" ||
+      paginaAtual === "/garcom/fechar-conta";
 
-  async function buscarSolicitacoes() {
-    try {
-      const resposta = await fetch("/api/solicitacoes/");
+    if (!estaNaAreaGarcom) return;
+    async function buscarSolicitacoes() {
+      try {
+        const resposta = await fetch("/api/solicitacoes/");
 
-      if (!resposta.ok) {
-        throw new Error("Não foi possível consultar as solicitações.");
+        if (!resposta.ok) {
+          throw new Error("Não foi possível consultar as solicitações.");
+        }
+
+        const dados = await resposta.json();
+
+        const lista = dados;
+
+        const pendentes = lista.filter(
+          solicitacao => solicitacao.status === "PENDENTE"
+        );
+
+        setSolicitacoesPendentes(pendentes);
+
+      } catch (erro) {
+        console.error("Erro ao consultar solicitações:", erro);
       }
-
-      const dados = await resposta.json();
-
-      const lista = Array.isArray(dados)
-        ? dados
-        : dados.results ?? [];
-
-      const pendentes = lista.filter(
-        solicitacao => solicitacao.status === "PENDENTE"
-      );
-
-      setSolicitacoesPendentes(pendentes);
-
-    } catch (erro) {
-      console.error("Erro ao consultar solicitações:", erro);
     }
-  }
 
-  buscarSolicitacoes();
+    buscarSolicitacoes();
 
-  const intervalo = setInterval(buscarSolicitacoes, 5000);
+    const intervalo = setInterval(buscarSolicitacoes, 5000);
 
-  return () => clearInterval(intervalo);
-}, [paginaAtual]);
+    return () => clearInterval(intervalo);
+  }, [paginaAtual]);
 
   // Verifica se o usuário está na tela inicial/abertura de comanda
   const isTelaInicial = paginaAtual === "/" || paginaAtual === "/abrir-comanda";
@@ -313,12 +324,44 @@ useEffect(() => {
     );
   }
 
-  if (Object.hasOwn(telasGarcom, paginaAtual)) {
+  // Telas do garçom
+  if (paginaAtual === "/garcom/fechar-conta") {
     return (
       <>
-        <SidebarGarcom paginaAtual={paginaAtual} quantidadePendentes={solicitacoesPendentes.length}/>
+        <SidebarGarcom
+          paginaAtual={paginaAtual}
+          quantidadePendentes={solicitacoesPendentes.length}
+        />
+
         <main className="ml-64 min-h-screen bg-fundo p-8">
-          {telasGarcom[paginaAtual]}
+          <FecharConta
+            solicitacao={solicitacaoFechamento}
+            onVoltar={voltarParaSolicitacoes}
+          />
+        </main>
+      </>
+    );
+  }
+  
+  if (
+    Object.hasOwn(telasGarcom, paginaAtual) ||
+    paginaAtual === "/garcom/solicitacoes"
+  ) {
+    return (
+      <>
+        <SidebarGarcom
+          paginaAtual={paginaAtual}
+          quantidadePendentes={solicitacoesPendentes.length}
+        />
+
+        <main className="ml-64 min-h-screen bg-fundo p-8">
+          {paginaAtual === "/garcom/solicitacoes" ? (
+            <SolicitacoesGarcom
+              onFecharConta={abrirTelaFechamento}
+            />
+          ) : (
+            telasGarcom[paginaAtual]
+          )}
         </main>
       </>
     );

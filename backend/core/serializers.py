@@ -2,7 +2,7 @@ import re
 from rest_framework import serializers
 from .models import (
     Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao
+    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao, Pagamento
 )
 from decimal import Decimal
 from django.db.models import prefetch_related_objects
@@ -376,6 +376,23 @@ class SolicitacaoSerializer(serializers.ModelSerializer):
             'mesa',
         ]
 
+class PagamentoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pagamento
+        fields = [
+            'id',
+            'comanda',
+            'valor',
+            'forma_pagamento'
+        ]
+        read_only_fields= ['id','comanda']
+
+    def validate_valor(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('O preço deve ser maior que zero.')
+        return value
+
+        
 class ComandaConsultaSerializer(serializers.ModelSerializer):
     mesa = serializers.IntegerField(source="mesa_id", read_only=True)
     pedidos = PedidoComandaSerializer(many=True, read_only=True)

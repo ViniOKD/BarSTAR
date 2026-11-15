@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import seta from "../../assets/setadourada.png";
 
-export default function SolicitacoesGarcom() {
+export default function SolicitacoesGarcom({onFecharConta}) {
   const [solicitacoes, setSolicitacoes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [carregandoId, setCarregandoId] = useState(null);
@@ -324,7 +324,7 @@ export default function SolicitacoesGarcom() {
                   </p>
                 </div>
 
-                {/* Status e confirmação */}
+                {/* Status e ação da solicitação */}
                 <div className="flex flex-col items-end gap-8">
                   <span
                     className={`rounded-full px-3 py-1 text-sm font-medium ${estiloStatus.cor}`}
@@ -332,25 +332,36 @@ export default function SolicitacoesGarcom() {
                     {estiloStatus.texto}
                   </span>
 
-                  <button
-                    onClick={() => confirmarAtendimento(solicitacao.id)}
-                    disabled={
-                      solicitacao.status !== "PENDENTE" ||
-                      estaCarregando
-                    }
-                    className="w-[220px] rounded-full bg-[#D4AF43]
-                    px-4 py-3 text-sm font-semibold text-white
-                    cursor-pointer active:translate-y-[2px]
-                    disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {estaCarregando
-                      ? "Confirmando..."
-                      : solicitacao.status === "ATENDIDA"
-                        ? "Atendimento confirmado"
-                        : solicitacao.status === "CANCELADA"
-                          ? "Solicitação cancelada"
+                  {/* Solicitação pendente de atendimento */}
+                  {solicitacao.status === "PENDENTE" &&
+                    solicitacao.tipo === "ATENDIMENTO" && (
+                      <button
+                        onClick={() => confirmarAtendimento(solicitacao.id)}
+                        disabled={estaCarregando}
+                        className="w-[220px] rounded-full bg-[#D4AF43]
+                        px-4 py-3 text-sm font-semibold text-white
+                        cursor-pointer active:translate-y-[2px]
+                        disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {estaCarregando
+                          ? "Confirmando..."
                           : "Confirmar atendimento"}
-                  </button>
+                      </button>
+                  )}
+
+                  {/* Solicitação pendente de fechamento */}
+                  {solicitacao.status === "PENDENTE" &&
+                    solicitacao.tipo === "FECHAMENTO" && (
+
+                      <button
+                        onClick={() => onFecharConta(solicitacao)}
+                        className="w-[220px] rounded-full bg-[#D4AF43]
+                        px-4 py-3 text-sm font-semibold text-white
+                        cursor-pointer active:translate-y-[2px]"
+                      >
+                        Fechar conta
+                      </button>
+                  )}
                 </div>
               </div>
             );

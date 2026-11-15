@@ -123,6 +123,8 @@ class Comanda(models.Model):
     telefone = models.CharField(max_length=15)
     ativa = models.BooleanField(default=True)
     data_abertura = models.DateTimeField(auto_now_add=True)
+    data_fechamento = models.DateTimeField(null=True,blank=True)
+    valor_total = models.DecimalField(max_digits=10,decimal_places=2,null=True,blank=True)
     mesa = models.ForeignKey(
         Mesa,
         on_delete=models.PROTECT,
@@ -429,3 +431,28 @@ class ItensPromocao(models.Model):
 
     def __str__(self):
         return f'{self.item} na {self.promocao}'
+
+class Pagamento(models.Model):
+    class FormaPagamento(models.TextChoices):
+        DINHEIRO = 'DINHEIRO','Dinheiro'
+        PIX= 'PIX','Pix'
+        CREDITO = 'CREDITO','Cartão de crédito' 
+        DEBITO = 'DEBITO','Cartão de débito' 
+
+    id = models.BigAutoField(primary_key=True)
+    comanda= models.ForeignKey(
+        Comanda,
+        on_delete=models.PROTECT,
+        related_name='pagamentos',
+        db_column='id_comanda',
+    )
+    valor = models.DecimalField(max_digits=10,decimal_places=2)
+    forma_pagamento = models.CharField( max_length=10, choices=FormaPagamento.choices)
+    data_pagamento=models.DateTimeField(auto_now_add=True)
+    class Meta:
+        db_table = 'pagamento'
+        ordering = ['-data_pagamento']
+        constraints = [CheckConstraint(check=Q(valor__gt=0),name='pagamento_valor_positivo',),]
+
+    def __str__(self):
+        return f'Pagamento #{self.id} - Comanda {self.comanda_id}'
