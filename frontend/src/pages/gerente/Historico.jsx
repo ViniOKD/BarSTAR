@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AvisoErro } from "../../components/gerente/Avisos.jsx";
-import { IconeVer } from "../../components/gerente/Icones.jsx";
+import { EyeIcon } from "@heroicons/react/24/outline";
 import Modal from "../../components/gerente/Modal.jsx";
 import { useDadosApi } from "../../hooks/useDadosApi.js";
 import formatarPreco from "../../utils/formatarPreco.js";
@@ -88,7 +88,7 @@ function LinhaComanda({ comanda, onVer }) {
       <td className="p-4 font-bold text-emerald-600">{formatarPreco(comanda.total)}</td>
       <td className="p-4 text-center">
         <button onClick={() => onVer(comanda)} className="text-gray-400 hover:text-hover transition-colors cursor-pointer" title="Ver Detalhes">
-          <IconeVer />
+          <EyeIcon className="w-5 h-5 inline" />
         </button>
       </td>
     </tr>

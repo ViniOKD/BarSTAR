@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AvisoErro, AvisoSucesso } from "../../components/gerente/Avisos.jsx";
 import FormCategoria from "../../components/gerente/FormCategoria.jsx";
-import { IconeEditar, IconeExcluir } from "../../components/gerente/Icones.jsx";
+import { PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
 import ModalConfirmacao from "../../components/gerente/ModalConfirmacao.jsx";
 import { useDadosApi } from "../../hooks/useDadosApi.js";
 import { useMensagemTemporaria } from "../../hooks/useMensagemTemporaria.js";
@@ -20,10 +20,10 @@ function LinhaCategoria({ categoria, onEditar, onExcluir }) {
       </td>
       <td className="p-4 text-center space-x-4">
         <button onClick={() => onEditar(categoria)} className="text-gray-400 hover:text-hover transition-colors cursor-pointer" title="Editar">
-          <IconeEditar />
+          <PencilIcon className="w-5 h-5 inline" />
         </button>
         <button onClick={() => onExcluir(categoria)} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer" title="Excluir">
-          <IconeExcluir />
+          <TrashIcon className="w-5 h-5 inline" />
         </button>
       </td>
     </tr>

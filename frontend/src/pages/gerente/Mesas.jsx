@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AvisoErro, AvisoSucesso } from "../../components/gerente/Avisos.jsx";
 import FormMesa from "../../components/gerente/FormMesa.jsx";
-import { IconeAgenda, IconeEditar, IconeExcluir, IconeJuntar, IconeSeparar } from "../../components/gerente/Icones.jsx";
+import { CalendarIcon, LinkIcon, PencilIcon, TrashIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import ModalConfirmacao from "../../components/gerente/ModalConfirmacao.jsx";
 import ModalJuntarMesas from "../../components/gerente/ModalJuntarMesas.jsx";
 import ModalReservas from "../../components/gerente/ModalReservas.jsx";
@@ -40,22 +40,22 @@ function LinhaMesa({ mesa, onAbrir }) {
       <td className="p-4 flex justify-center gap-3 items-center">
         {status === "LIVRE" && (
           <button onClick={() => onAbrir("juntar", mesa)} className={`${botaoAcao} hover:text-yellow-600`} title="Juntar Mesas">
-            <IconeJuntar />
+            <LinkIcon className="w-5 h-5 inline" />
           </button>
         )}
         {mesa.is_principal && (
           <button onClick={() => onAbrir("separar", mesa)} className={`${botaoAcao} hover:text-yellow-600`} title="Desagrupar Mesas">
-            <IconeSeparar />
+            <XCircleIcon className="w-5 h-5 inline" />
           </button>
         )}
         <button onClick={() => onAbrir("reservas", mesa)} className={`${botaoAcao} hover:text-yellow-600`} title="Agenda de Reservas">
-          <IconeAgenda />
+          <CalendarIcon className="w-5 h-5 inline" />
         </button>
         <button onClick={() => onAbrir("formulario", mesa)} className={`${botaoAcao} hover:text-emerald-600`} title="Editar">
-          <IconeEditar />
+          <PencilIcon className="w-5 h-5 inline" />
         </button>
         <button onClick={() => onAbrir("excluir", mesa)} className={`${botaoAcao} hover:text-red-500`} title="Excluir">
-          <IconeExcluir />
+          <TrashIcon className="w-5 h-5 inline" />
         </button>
       </td>
     </tr>
