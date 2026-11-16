@@ -15,8 +15,8 @@ export const descricaoDoCargo = {
 export const paginaInicialDoCargo = {
   GERENTE: "/gerente",
   GARCOM: "/garcom",
-  COZINHA: "/preparo",
-  BAR: "/preparo",
+  COZINHA: "/cozinha",
+  BAR: "/bar",
 };
 
 export function formatarCpf(cpf) {

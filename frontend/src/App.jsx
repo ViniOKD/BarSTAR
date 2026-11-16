@@ -9,7 +9,12 @@ import Configuracoes from "./pages/Configuracoes";
 import PainelGerente from "./pages/PainelGerente";
 import { SidebarGerente } from "./components/SidebarGerente";
 import RotaProtegida from "./components/RotaProtegida";
-import Preparo from "./pages/Preparo";
+import PainelCozinha from "./pages/cozinha/PainelCozinha";
+import DisponibilidadeCozinha from "./pages/cozinha/DisponibilidadeCozinha";
+import PainelBar from "./pages/bar/PainelBar";
+import DisponibilidadeBar from "./pages/bar/DisponibilidadeBar";
+import { SidebarCozinha } from "./components/SidebarCozinha";
+import { SidebarBar } from "./components/SidebarBar";
 import Usuarios from "./pages/gerente/Usuarios";
 import Mesas from "./pages/gerente/Mesas";
 import Categorias from "./pages/gerente/Categorias";
@@ -38,6 +43,16 @@ const telasGarcom = {
   "/garcom": <PainelGarcom />,
   "/garcom/solicitacoes": <SolicitacoesGarcom />,
   "/garcom/pedidos": <PedidosGarcom />,
+};
+
+const telasCozinha = {
+  "/cozinha": <PainelCozinha />,
+  "/cozinha/disponibilidade": <DisponibilidadeCozinha />,
+};
+
+const telasBar = {
+  "/bar": <PainelBar />,
+  "/bar/disponibilidade": <DisponibilidadeBar />,
 };
 
 export default function App() {
@@ -356,13 +371,29 @@ useEffect(() => {
     );
   }
 
-  if (paginaAtual === "/preparo") {
-    return (
-      <RotaProtegida cargos={["COZINHA", "BAR"]}>
-        <Preparo />
-      </RotaProtegida>
-    );
-  }
+  if (Object.hasOwn(telasCozinha, paginaAtual)) {
+  return (
+    <RotaProtegida cargos={["COZINHA"]}>
+      <SidebarCozinha paginaAtual={paginaAtual} />
+
+      <main className="ml-64 min-h-screen bg-fundo p-8">
+        {telasCozinha[paginaAtual]}
+      </main>
+    </RotaProtegida>
+  );
+}
+
+if (Object.hasOwn(telasBar, paginaAtual)) {
+  return (
+    <RotaProtegida cargos={["BAR"]}>
+      <SidebarBar paginaAtual={paginaAtual} />
+
+      <main className="ml-64 min-h-screen bg-fundo p-8">
+        {telasBar[paginaAtual]}
+      </main>
+    </RotaProtegida>
+  );
+}
 
   // Se já passou possui comanda, exibe a estrutura completa do Cardápio
   return (
