@@ -1,7 +1,5 @@
+import ListaDisponibilidade from "../../components/ListaDisponibilidade.jsx";
+
 export default function DisponibilidadeBar() {
-  return (
-    <h1 className="font-header text-2xl font-bold text-header">
-      Disponibilidade
-    </h1>
-  );
+  return <ListaDisponibilidade tipoCategoria="BEBIDA" titulo="Disponibilidade" />;
 }
