@@ -1,3 +1,5 @@
+import { requisicaoApi } from "./api.js";
+
 export const IMAGEM_PADRAO = "/media/itens/default.png";
 
 // Valores iniciais do formulário, a partir do produto em edição (ou vazios no cadastro).
@@ -70,4 +72,12 @@ export function dadosDoProduto(formulario, tipoCategoria) {
   }
 
   return dados;
+}
+
+// Marca o produto como disponível ou indisponível no cardápio.
+export function alterarDisponibilidade(id, disponivel) {
+  return requisicaoApi(`/api/itens/${id}/disponibilidade/`, {
+    method: "PATCH",
+    body: JSON.stringify({ disponivel }),
+  });
 }

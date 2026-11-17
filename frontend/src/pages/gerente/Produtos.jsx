@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { AvisoErro, AvisoSucesso } from "../../components/gerente/Avisos.jsx";
+import ChaveDisponibilidade from "../../components/ChaveDisponibilidade.jsx";
 import FormProduto from "../../components/gerente/FormProduto.jsx";
 import { PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
 import ModalConfirmacao from "../../components/gerente/ModalConfirmacao.jsx";
 import { useDadosApi } from "../../hooks/useDadosApi.js";
 import { useMensagemTemporaria } from "../../hooks/useMensagemTemporaria.js";
 import { mensagemDoErro, requisicaoApi } from "../../utils/api.js";
-import { IMAGEM_PADRAO } from "../../utils/produtos.js";
+import { IMAGEM_PADRAO, alterarDisponibilidade } from "../../utils/produtos.js";
 
 const filtroClasse = "w-full border border-gray-300 p-2.5 rounded-md focus:outline-none focus:border-hover focus:ring-1 focus:ring-hover text-gray-700 bg-white";
 
-function LinhaProduto({ produto, onEditar, onExcluir }) {
+function LinhaProduto({ produto, alterando, onAlternarDisponibilidade, onEditar, onExcluir }) {
   return (
     <tr className="hover:bg-destaque transition-colors group border-b border-gray-100 last:border-0">
       <td className="p-4">
@@ -23,9 +24,11 @@ function LinhaProduto({ produto, onEditar, onExcluir }) {
       <td className="p-4 text-gray-600">{produto.categoria?.nome}</td>
       <td className="p-4 text-gray-600">{Number(produto.preco_unitario).toFixed(2)}</td>
       <td className="p-4">
-        {produto.disponivel
-          ? <span className="text-emerald-600 font-bold">Disponível</span>
-          : <span className="text-red-500 font-bold">Esgotado</span>}
+        <ChaveDisponibilidade
+          disponivel={produto.disponivel}
+          desabilitado={alterando}
+          onAlternar={(disponivel) => onAlternarDisponibilidade(produto, disponivel)}
+        />
       </td>
       <td className="p-4 text-center space-x-4">
         <button onClick={() => onEditar(produto)} className="text-gray-400 hover:text-hover transition-colors cursor-pointer" title="Editar">
@@ -60,6 +63,8 @@ export default function Produtos() {
   const [paraExcluir, setParaExcluir] = useState(null);
   const [erroExclusao, setErroExclusao] = useState("");
   const [mensagemSucesso, setMensagemSucesso] = useMensagemTemporaria();
+  const [alterandoDisponibilidade, setAlterandoDisponibilidade] = useState([]);
+  const [erroDisponibilidade, setErroDisponibilidade] = useState("");
 
   function alterarFiltro(evento) {
     setFiltros({ ...filtros, [evento.target.name]: evento.target.value });
@@ -74,6 +79,20 @@ export default function Produtos() {
   function pedirExclusao(produto) {
     setErroExclusao("");
     setParaExcluir(produto);
+  }
+
+  async function alternarDisponibilidade(produto, disponivel) {
+    setAlterandoDisponibilidade((atuais) => [...atuais, produto.id]);
+    setErroDisponibilidade("");
+    try {
+      await alterarDisponibilidade(produto.id, disponivel);
+      setMensagemSucesso(`${produto.nome} agora está ${disponivel ? "disponível" : "indisponível"}.`);
+      recarregar();
+    } catch (falha) {
+      setErroDisponibilidade(mensagemDoErro(falha));
+    } finally {
+      setAlterandoDisponibilidade((atuais) => atuais.filter((id) => id !== produto.id));
+    }
   }
 
   async function excluir() {
@@ -103,7 +122,7 @@ export default function Produtos() {
         </button>
       </div>
 
-      <AvisoErro mensagem={erro} />
+      <AvisoErro mensagem={erro || erroDisponibilidade} />
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-4">
         <div className="flex-1">
@@ -121,7 +140,7 @@ export default function Produtos() {
           <select name="disponibilidade" value={filtros.disponibilidade} onChange={alterarFiltro} className={filtroClasse}>
             <option value="todos">Todos os Status</option>
             <option value="disponivel">Disponíveis</option>
-            <option value="esgotado">Esgotados</option>
+            <option value="indisponivel">Indisponíveis</option>
           </select>
         </div>
       </div>
@@ -149,6 +168,8 @@ export default function Produtos() {
               <LinhaProduto
                 key={produto.id}
                 produto={produto}
+                alterando={alterandoDisponibilidade.includes(produto.id)}
+                onAlternarDisponibilidade={alternarDisponibilidade}
                 onEditar={(selecionado) => setFormulario({ produto: selecionado })}
                 onExcluir={pedirExclusao}
               />
