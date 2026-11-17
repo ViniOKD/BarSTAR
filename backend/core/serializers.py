@@ -277,6 +277,10 @@ class ItemSerializer(serializers.ModelSerializer):
             attrs['teor_alcoolico'] = None
         return attrs
 
+class DisponibilidadeItemSerializer(serializers.Serializer):
+    disponivel = serializers.BooleanField()
+
+
 class ItemCardapioSerializer(ItemSerializer):
     preco_atual = serializers.SerializerMethodField()
     promocao_atual = serializers.SerializerMethodField()
