@@ -8,7 +8,7 @@ from rest_framework.decorators import action
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from decimal import Decimal
@@ -22,7 +22,7 @@ from .serializers import (
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
     FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer,
-    ItemCardapioSerializer, EnviarPedidoSerializer, SolicitacaoSerializer, HistoricoComandaSerializer)
+    ItemCardapioSerializer, EnviarPedidoSerializer, DisponibilidadeItemSerializer, SolicitacaoSerializer, HistoricoComandaSerializer)
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
 )
@@ -32,7 +32,8 @@ from .autenticacao import (
     buscar_funcionario, entrar_como_funcionario, entrar_como_gerente,
 )
 from .permissoes import (
-    SEM_LOGIN, GerenteOuLeitura, PermissaoDoCargo, SomenteGerente, cargo_de,
+    SEM_LOGIN, GerenteOuLeitura, PermissaoDoCargo, PodeAlterarDisponibilidade,
+    SomenteGerente, cargo_de,
 )
 from .services.mesas import (
     erro_de_reserva_na_abertura, juntar_mesas, tem_comanda_ativa,
@@ -466,14 +467,37 @@ class PromocaoViewSet(viewsets.ModelViewSet):
         )
         return Response(serializer.data)
     
+# Tipo de produto que cada setor pode marcar como disponível ou indisponível.
+TIPO_POR_CARGO = {
+    Funcionario.Cargo.COZINHA: Categoria.TipoCategoria.PRATO,
+    Funcionario.Cargo.BAR: Categoria.TipoCategoria.BEBIDA,
+}
+
+
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemCardapioSerializer
     permission_classes = [GerenteOuLeitura]
-    
 
     def perform_create(self, serializer):
         serializer.save(gerente=self.request.user)
+
+    # Gerente, cozinha e bar marcam o item como disponível ou indisponível.
+    @action(detail=True, methods=['patch'], permission_classes=[PodeAlterarDisponibilidade])
+    def disponibilidade(self, request, pk=None):
+        item = self.get_object()
+
+        # A cozinha só altera pratos e o bar só altera bebidas; o gerente altera tudo.
+        tipo_do_setor = TIPO_POR_CARGO.get(cargo_de(request.user))
+        if tipo_do_setor and item.categoria.tipo_categoria != tipo_do_setor:
+            raise PermissionDenied('Este produto não pertence ao seu setor.')
+
+        dados = DisponibilidadeItemSerializer(data=request.data)
+        dados.is_valid(raise_exception=True)
+
+        item.disponivel = dados.validated_data['disponivel']
+        item.save(update_fields=['disponivel'])
+        return Response(self.get_serializer(item).data)
 
     def destroy(self, request, *args, **kwargs):
         try:

@@ -16,10 +16,12 @@ PERMISSOES_POR_CARGO = {
     Funcionario.Cargo.COZINHA: {
         "ver_pedidos",
         "atualizar_preparo",
+        "alterar_disponibilidade",
     },
     Funcionario.Cargo.BAR: {
         "ver_pedidos",
         "atualizar_preparo",
+        "alterar_disponibilidade",
     },
 }
 
@@ -82,3 +84,11 @@ class PermissaoDoCargo(BasePermission):
             return True
 
         return tem_permissao(request.user, permissao)
+
+
+class PodeAlterarDisponibilidade(BasePermission):
+    # Gerente, cozinha e bar podem marcar itens como disponíveis ou indisponíveis.
+    message = "Seu cargo não tem permissão para esta ação."
+
+    def has_permission(self, request, view):
+        return tem_permissao(request.user, "alterar_disponibilidade")
