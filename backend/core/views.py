@@ -7,6 +7,7 @@ from rest_framework import viewsets, status, mixins, viewsets, status
 from rest_framework.decorators import action
 from rest_framework import viewsets, status
 from rest_framework.response import Response
+from datetime import datetime, time
 from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
@@ -21,12 +22,13 @@ from .serializers import (
     PedidoSerializer, CategoriaSerializer, GerenteSerializer, FuncionarioSerializer,
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
-    FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer,
+    FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer, FiltroDashboardSerializer,
     ItemCardapioSerializer, EnviarPedidoSerializer, DisponibilidadeItemSerializer, SolicitacaoSerializer, HistoricoComandaSerializer)
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
 )
 from .services.dar_preco import obter_precos_atuais
+from .services.dashboard_gerente import resumir_dashboard
 from .services.pedidos import cozinha_do_usuario, enviar_pedido
 from .autenticacao import (
     buscar_funcionario, entrar_como_funcionario, entrar_como_gerente,
@@ -760,6 +762,20 @@ class ComandasGarcomView(APIView):
 
         serializer = ComandaConsultaSerializer(comandas, many=True)
         return Response(serializer.data)
+
+
+class DashboardGerenteView(APIView):
+    permission_classes = [SomenteGerente]
+
+    def get(self, request):
+        filtro = FiltroDashboardSerializer(data=request.query_params)
+        filtro.is_valid(raise_exception=True)
+        comandas = Comanda.objects.filter(
+            mesa__gerente=request.user, ativa=False,
+            data_fechamento__gte=timezone.make_aware(datetime.combine(filtro.validated_data['data_inicio'], time.min)),
+            data_fechamento__lte=timezone.make_aware(datetime.combine(filtro.validated_data['data_fim'], time.max)),
+        )
+        return Response(resumir_dashboard(comandas))
 
 
 class HistoricoComandasView(APIView):
