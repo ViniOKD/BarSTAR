@@ -20,6 +20,16 @@ from rest_framework.exceptions import PermissionDenied
 # Os serializers convertem dados do banco de dados para formato JSON
 
 
+class FiltroDashboardSerializer(serializers.Serializer):
+    data_inicio = serializers.DateField()
+    data_fim = serializers.DateField()
+
+    def validate(self, dados):
+        if dados['data_inicio'] > dados['data_fim']:
+            raise serializers.ValidationError('A data inicial deve ser anterior ou igual à data final.')
+        return dados
+
+
 class FiltroCardapioSerializer(serializers.Serializer):
     disponivel = serializers.BooleanField(required=False)
     tipo_categoria = serializers.ChoiceField(
