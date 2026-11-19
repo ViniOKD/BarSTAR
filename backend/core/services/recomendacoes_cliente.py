@@ -6,7 +6,7 @@ from .metricas_recomendacoes import calcular_metricas_associacoes
 
 def obter_sugestoes_cliente(itens_atuais_ids, limite=3):
 
-    ultimos_seis_meses = timezone.now() - timedelta(day=180)
+    ultimos_seis_meses = timezone.now() - timedelta(days=180)
 
     comandas_historico = Comanda.objects.filter(
         data_fechamento__gte = ultimos_seis_meses,
