@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from core.models import ItensPedido
-from backend.core.services.metricas_recomendacoes import calcular_metricas_associacoes
+from core.services.metricas_recomendacoes import calcular_metricas_associacoes
 
 
 def resumir_dashboard(comandas):
