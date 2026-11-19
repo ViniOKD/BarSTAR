@@ -40,6 +40,7 @@ from .permissoes import (
 from .services.mesas import (
     erro_de_reserva_na_abertura, juntar_mesas, tem_comanda_ativa,
 )
+from core.services.recomendacoes_cliente import obter_sugestoes_cliente
 
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
@@ -810,3 +811,28 @@ class HistoricoComandasView(APIView):
         serializer = HistoricoComandaSerializer(comandas, many=True)
         
         return Response(serializer.data)
+
+class RecomendacoesClienteView(APIView):
+    # Cliente consulta pelo tablet sem login, igual ao cardápio e à comanda.
+    def get(self, request):
+        itens_param = request.query_params.get('itens', '')
+
+        try:
+            itens_atuais_ids = [
+                int(item_id) for item_id in itens_param.split(',') if item_id.strip()
+            ]
+        except ValueError:
+            return Response(
+                {"erro": "Parâmetro 'itens' inválido. Envie IDs inteiros separados por vírgula."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        sugestoes = obter_sugestoes_cliente(itens_atuais_ids, limite=3)
+
+        # Usa o mesmo serializer e cálculo de preço vigente (com promoção) do cardápio.
+        contexto = {
+            "request": request,
+            "precos_atuais": obter_precos_atuais(sugestoes),
+        }
+        serializer = ItemCardapioSerializer(sugestoes, many=True, context=contexto)
+        return Response(serializer.data, status=status.HTTP_200_OK)

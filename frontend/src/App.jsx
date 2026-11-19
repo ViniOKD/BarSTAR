@@ -29,6 +29,7 @@ import PainelGarcom from "./pages/garcom/PainelGarcom";
 import SolicitacoesGarcom from "./pages/garcom/SolicitacoesGarcom";
 import PedidosGarcom from "./pages/garcom/PedidosGarcom";
 import { SidebarGarcom } from "./components/SidebarGarcom";
+import ModalProduto from "./components/ModalProduto";
 
 const telasGerente = {
   "/gerente": <PainelGerente />,
@@ -65,6 +66,7 @@ export default function App() {
   const [pedidosAberto, setPedidosAberto] = useState(false);
   const [itensPedido, setItensPedido] = useState([]);
   const [itemEmEdicao, setItemEmEdicao] = useState(null);
+  const [sugestaoSelecionada, setSugestaoSelecionada] = useState(null);
   const [enviandoPedido, setEnviandoPedido] = useState(false);
   const [atualizandoPedido, setAtualizandoPedido] = useState(false);
   const [erroPedido, setErroPedido] = useState("");
@@ -497,12 +499,29 @@ if (Object.hasOwn(telasBar, paginaAtual)) {
             itens={itensPedido}
             onRemoverItem={removerItemPedido}
             onEditarItem={editarItemPedido}
+            onSelecionarSugestao={(sugestao) => {
+              setPedidosAberto(false);
+              setSugestaoSelecionada(sugestao);
+            }}
             onEnviar={enviarPedido}
             enviando={enviandoPedido}
             atualizando={atualizandoPedido}
             erro={erroPedido}
             aviso={avisoPedido}
             onAtualizar={abrirPedidos}
+          />
+        )}
+          
+          {sugestaoSelecionada && (
+          <ModalProduto
+            key={sugestaoSelecionada.id}
+            produto={sugestaoSelecionada}
+            onFechar={() => setSugestaoSelecionada(null)}
+            onAdicionar={(itemComQuantidadeEObs) => {
+              adicionarItemPedido(itemComQuantidadeEObs);
+              setSugestaoSelecionada(null);
+              setPedidosAberto(true);
+            }}
           />
         )}
 
