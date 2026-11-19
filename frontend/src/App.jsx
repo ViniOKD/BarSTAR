@@ -497,6 +497,13 @@ if (Object.hasOwn(telasBar, paginaAtual)) {
             itens={itensPedido}
             onRemoverItem={removerItemPedido}
             onEditarItem={editarItemPedido}
+            onAdicionarItem={(sugestao) =>
+              adicionarItemPedido({
+                ...sugestao,
+                quantidade: 1,
+                observacoes: "",
+              })
+            }
             onEnviar={enviarPedido}
             enviando={enviandoPedido}
             atualizando={atualizandoPedido}
