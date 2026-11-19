@@ -3,7 +3,7 @@ import formatarPreco from "../utils/formatarPreco";
 import { deCentavos, paraCentavos } from "../utils/valores";
 import { requisicaoApi } from "../services/api";
 
-export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, onEditarItem, onAdicionarItem, onEnviar,
+export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, onEditarItem, onSelecionarSugestao, onEnviar,
   enviando = false, atualizando = false, erro = "", aviso = "", onAtualizar }) {
   const dialogoRef = useRef(null);
   const ocupado = atualizando || enviando;
@@ -258,7 +258,6 @@ export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, o
                   )}
                 </article>
               ))}
-
               {sugestoes.length > 0 && (
                 <div className="mt-3 border-t border-hover/40 pt-3">
                   <h3 className="font-header text-sm font-bold text-header">
@@ -266,25 +265,28 @@ export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, o
                   </h3>
                   <div className="mt-2 space-y-2">
                     {sugestoes.map((sugestao) => (
-                      <div
+                      <button
                         key={sugestao.id}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-hover/50 bg-white/80 p-2.5"
+                        type="button"
+                        onClick={() => onSelecionarSugestao && onSelecionarSugestao(sugestao)}
+                        disabled={ocupado}
+                        className="flex w-full items-center justify-between gap-3 rounded-lg border border-hover/50 bg-white/80 p-2.5 text-left transition-colors hover:bg-destaque disabled:opacity-50"
                       >
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-bold">{sugestao.nome}</p>
                           <p className="text-xs font-semibold text-[#996315]">
                             {formatarPreco(sugestao.preco_atual)}
                           </p>
+                          {sugestao.promocao_atual && (
+                            <p className="text-xs text-green-700 font-medium">
+                              {sugestao.promocao_atual.desconto_percentual}% off · {sugestao.promocao_atual.nome}
+                            </p>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => onAdicionarItem && onAdicionarItem(sugestao)}
-                          disabled={ocupado}
-                          className="shrink-0 rounded-md border border-[#996315] px-3 py-1.5 text-xs font-bold text-[#996315] transition-colors hover:bg-[#996315] hover:text-white disabled:opacity-50"
-                        >
-                          + Adicionar
-                        </button>
-                      </div>
+                        <span className="shrink-0 rounded-md border border-[#996315] px-2.5 py-1 text-xs font-bold text-[#996315]">
+                          Escolher
+                        </span>
+                      </button>
                     ))}
                   </div>
                 </div>
