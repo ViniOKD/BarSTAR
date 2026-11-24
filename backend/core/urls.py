@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (    HistoricoComandasView, ReservaViewSet, health, PedidoViewSet, CategoriaViewSet, GerenteViewSet,
+from .views import (    HistoricoComandasView, RecomendacoesClienteView, ReservaViewSet, health, PedidoViewSet, CategoriaViewSet, GerenteViewSet,
     FuncionarioViewSet, MesaViewSet, CozinhaViewSet, ItemViewSet,
     ItensPedidoViewSet, AbrirComandaView, ItensPromocaoViewSet,
     PromocaoViewSet, ConsultarComandaView, EnviarPedidoView,
@@ -33,5 +33,6 @@ urlpatterns = [
     path("gerente/dashboard/", DashboardGerenteView.as_view(), name="dashboard-gerente"),
     path("gerente/relatorio-vendas/", RelatorioVendasView.as_view(), name="relatorio-vendas"),
     path('historico/comandas/', HistoricoComandasView.as_view(), name="historico-comandas"),
+    path("recomendacoes/", RecomendacoesClienteView.as_view(), name="recomendacoes-cliente"),
     path('', include(router.urls))
 ]
