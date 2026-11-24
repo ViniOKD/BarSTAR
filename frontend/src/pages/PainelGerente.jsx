@@ -42,12 +42,12 @@ function Indicadores({ consulta }) {
   return (
     <div className="space-y-6">
       <p className="text-sm text-gray-600">{painel.total_comandas} comandas finalizadas no período selecionado.</p>
-      <Secao titulo="Produtos mais vendidos" descricao="Ordenados pela quantidade de unidades vendidas.">
-        {painel.produtos.length === 0 ? <p className="p-5 text-gray-500">Nenhum produto vendido no período.</p> : (
+      <Secao titulo="Produtos mais vendidos" descricao="Unidades vendidas e participação no total. Produtos sem venda aparecem com zero.">
+        {painel.produtos.length === 0 ? <p className="p-5 text-gray-500">Nenhum produto cadastrado.</p> : (
           <table className={tabela}>
-            <thead className={cabecalho}><tr><th scope="col" className="p-4">Produto</th><th scope="col" className="p-4 text-right">Unidades vendidas</th></tr></thead>
+            <thead className={cabecalho}><tr><th scope="col" className="p-4">Produto</th><th scope="col" className="p-4 text-right">Unidades vendidas</th><th scope="col" className="p-4 text-right">Participação</th></tr></thead>
             <tbody>{painel.produtos.map((produto) => (
-              <tr key={produto.id} className={linha}><td className="p-4 font-bold">{produto.nome}</td><td className="p-4 text-right">{produto.quantidade}</td></tr>
+              <tr key={produto.id} className={linha}><td className="p-4 font-bold">{produto.nome}</td><td className="p-4 text-right">{produto.quantidade}</td><td className="p-4 text-right">{percentual(produto.participacao)}</td></tr>
             ))}</tbody>
           </table>
         )}
@@ -77,6 +77,27 @@ function Indicadores({ consulta }) {
             <thead className={cabecalho}><tr><th scope="col" className="p-4">Promoção</th><th scope="col" className="p-4 text-right">Unidades vendidas</th><th scope="col" className="p-4 text-right">Faturamento</th></tr></thead>
             <tbody>{painel.promocoes.map((promocao) => (
               <tr key={promocao.id} className={linha}><td className="p-4 font-bold">{promocao.nome}</td><td className="p-4 text-right">{promocao.quantidade}</td><td className="p-4 text-right font-bold text-emerald-600">{formatarPreco(promocao.faturamento)}</td></tr>
+            ))}</tbody>
+          </table>
+        )}
+      </Secao>
+
+      <Secao titulo="Dias de baixo movimento" descricao="Média de comandas finalizadas por dia da semana. Sinaliza dias com pelo menos 8 observações e média abaixo de 70% da média geral por dia aberto.">
+        <p className="px-5 pt-4 text-sm text-gray-500">
+          Média geral: {painel.movimento.media_geral_comandas.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} comandas por dia aberto. Dias abertos sem venda contam como zero.
+        </p>
+        {painel.movimento.dias_baixo_movimento.length === 0 ? <p className="p-5 text-gray-500">Nenhum dia da semana atende aos critérios no período.</p> : (
+          <table className={tabela}>
+            <thead className={cabecalho}><tr>
+              {['Dia da semana', 'Dias observados', 'Média de comandas', 'Média de faturamento'].map((titulo) => <th key={titulo} scope="col" className="p-4 whitespace-nowrap">{titulo}</th>)}
+            </tr></thead>
+            <tbody>{painel.movimento.dias_baixo_movimento.map((dia) => (
+              <tr key={dia.dia_semana} className={linha}>
+                <td className="p-4 font-bold capitalize">{dia.dia_semana}</td>
+                <td className="p-4">{dia.dias_observados}</td>
+                <td className="p-4">{dia.media_comandas.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+                <td className="p-4 font-bold text-emerald-600">{formatarPreco(dia.media_faturamento)}</td>
+              </tr>
             ))}</tbody>
           </table>
         )}

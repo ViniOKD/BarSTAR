@@ -21,7 +21,6 @@ import Categorias from "./pages/gerente/Categorias";
 import Produtos from "./pages/gerente/Produtos";
 import Promocoes from "./pages/gerente/Promocoes";
 import Historico from "./pages/gerente/Historico";
-import Recomendacoes from "./pages/gerente/Recomendacoes";
 import Pedidos from "./components/Pedidos";
 import { requisicaoApi } from "./utils/api";
 import { atualizarPrecosCarrinho, aplicarPrecosAlterados, dadosEnvioPedido } from "./utils/carrinho";
@@ -38,7 +37,6 @@ const telasGerente = {
   "/gerente/produtos": <Produtos />,
   "/gerente/promocoes": <Promocoes />,
   "/gerente/historico": <Historico />,
-  "/gerente/recomendacoes": <Recomendacoes />,
 };
 
 const telasGarcom = {

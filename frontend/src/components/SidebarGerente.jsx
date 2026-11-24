@@ -12,7 +12,6 @@ const linksPrincipais = [
   { nome: "Produtos", href: `${url}/produtos` },
   { nome: "Promoções", href: `${url}/promocoes` },
   { nome: "Histórico", href: `${url}/historico` },
-  { nome: "Recomendações Gerenciais", href: `${url}/recomendacoes` },
 ];
 
 const estiloLink =
