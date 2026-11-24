@@ -1,4 +1,5 @@
 from django.db import connection, transaction
+from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
@@ -7,7 +8,6 @@ from rest_framework import viewsets, status, mixins, viewsets, status
 from rest_framework.decorators import action
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-from datetime import datetime, time
 from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
@@ -771,12 +771,15 @@ class DashboardGerenteView(APIView):
     def get(self, request):
         filtro = FiltroDashboardSerializer(data=request.query_params)
         filtro.is_valid(raise_exception=True)
+        data_inicio = filtro.validated_data['data_inicio']
+        data_fim = filtro.validated_data['data_fim']
         comandas = Comanda.objects.filter(
-            mesa__gerente=request.user, ativa=False,
-            data_fechamento__gte=timezone.make_aware(datetime.combine(filtro.validated_data['data_inicio'], time.min)),
-            data_fechamento__lte=timezone.make_aware(datetime.combine(filtro.validated_data['data_fim'], time.max)),
+            Q(mesa__gerente=request.user),
+            Q(data_abertura__date__range=(data_inicio, data_fim))
+            | Q(data_fechamento__date__range=(data_inicio, data_fim)),
         )
-        return Response(resumir_dashboard(comandas))
+        produtos = Item.objects.filter(gerente=request.user).values_list('id', 'nome')
+        return Response(resumir_dashboard(comandas, produtos, data_inicio, data_fim))
 
 
 class HistoricoComandasView(APIView):
