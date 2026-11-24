@@ -1,7 +1,7 @@
 from django.db import connection, transaction
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET
 from django.contrib.auth import logout
 from rest_framework import viewsets, status, mixins, viewsets, status
@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from datetime import datetime, time
 from decimal import Decimal
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
@@ -23,12 +24,14 @@ from .serializers import (
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
     FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer, FiltroDashboardSerializer,
+    FiltroRelatorioSerializer,
     ItemCardapioSerializer, EnviarPedidoSerializer, DisponibilidadeItemSerializer, SolicitacaoSerializer, HistoricoComandaSerializer)
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
 )
 from .services.dar_preco import obter_precos_atuais
 from .services.dashboard_gerente import resumir_dashboard
+from .services.relatorio_vendas import gerar_csv, gerar_pdf, gerar_relatorio
 from .services.pedidos import cozinha_do_usuario, enviar_pedido
 from .autenticacao import (
     buscar_funcionario, entrar_como_funcionario, entrar_como_gerente,
@@ -772,13 +775,47 @@ class DashboardGerenteView(APIView):
         filtro.is_valid(raise_exception=True)
         data_inicio = filtro.validated_data['data_inicio']
         data_fim = filtro.validated_data['data_fim']
+        inicio = timezone.make_aware(datetime.combine(data_inicio, time.min))
+        fim = timezone.make_aware(datetime.combine(data_fim, time.max))
         comandas = Comanda.objects.filter(
             Q(mesa__gerente=request.user),
-            Q(data_abertura__date__range=(data_inicio, data_fim))
-            | Q(data_fechamento__date__range=(data_inicio, data_fim)),
+            Q(data_abertura__range=(inicio, fim)) | Q(data_fechamento__range=(inicio, fim)),
         )
         produtos = Item.objects.filter(gerente=request.user).values_list('id', 'nome')
         return Response(resumir_dashboard(comandas, produtos, data_inicio, data_fim))
+
+
+class RelatorioVendasView(APIView):
+    permission_classes = [SomenteGerente]
+
+    def get(self, request):
+        filtro = FiltroRelatorioSerializer(data=request.query_params)
+        filtro.is_valid(raise_exception=True)
+        dados = filtro.validated_data
+        comandas = Comanda.objects.filter(
+            mesa__gerente=request.user, ativa=False,
+            data_fechamento__range=(
+                timezone.make_aware(datetime.combine(dados['data_inicio'], time.min)),
+                timezone.make_aware(datetime.combine(dados['data_fim'], time.max)),
+            ),
+        )
+        if 'garcom' in dados:
+            comandas = comandas.filter(garcom_id=dados['garcom'])
+
+        relatorio = gerar_relatorio(
+            comandas, dados['data_inicio'], dados['data_fim'],
+            categoria=dados.get('categoria'), promocao=dados.get('promocao'),
+        )
+        nome = f"relatorio-vendas-{dados['data_inicio']}-{dados['data_fim']}"
+        formato = dados['formato']
+        if formato == 'csv':
+            resposta = HttpResponse(gerar_csv(relatorio), content_type='text/csv; charset=utf-8')
+        elif formato == 'pdf':
+            resposta = HttpResponse(gerar_pdf(relatorio), content_type='application/pdf')
+        else:
+            return Response(relatorio)
+        resposta['Content-Disposition'] = f'attachment; filename="{nome}.{formato}"'
+        return resposta
 
 
 class HistoricoComandasView(APIView):
