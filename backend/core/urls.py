@@ -5,6 +5,7 @@ from .views import (    HistoricoComandasView, RecomendacoesClienteView, Reserva
     ItensPedidoViewSet, AbrirComandaView, ItensPromocaoViewSet,
     PromocaoViewSet, ConsultarComandaView, EnviarPedidoView,
     SolicitacaoViewSet, LoginView, LogoutView, SessaoView, ComandasGarcomView, DashboardGerenteView,
+    RelatorioVendasView,
 )
 
 router = DefaultRouter()
@@ -30,6 +31,7 @@ urlpatterns = [
     path('enviar-pedido/', EnviarPedidoView.as_view(), name='enviar-pedido'),
     path("garcom/comandas/", ComandasGarcomView.as_view(), name="comandas-garcom"),
     path("gerente/dashboard/", DashboardGerenteView.as_view(), name="dashboard-gerente"),
+    path("gerente/relatorio-vendas/", RelatorioVendasView.as_view(), name="relatorio-vendas"),
     path('historico/comandas/', HistoricoComandasView.as_view(), name="historico-comandas"),
     path("recomendacoes/", RecomendacoesClienteView.as_view(), name="recomendacoes-cliente"),
     path('', include(router.urls))

@@ -30,6 +30,13 @@ class FiltroDashboardSerializer(serializers.Serializer):
         return dados
 
 
+class FiltroRelatorioSerializer(FiltroDashboardSerializer):
+    categoria = serializers.IntegerField(min_value=1, required=False)
+    garcom = serializers.IntegerField(min_value=1, required=False)
+    promocao = serializers.IntegerField(min_value=1, required=False)
+    formato = serializers.ChoiceField(choices=('json', 'csv', 'pdf'), default='json')
+
+
 class FiltroCardapioSerializer(serializers.Serializer):
     disponivel = serializers.BooleanField(required=False)
     tipo_categoria = serializers.ChoiceField(

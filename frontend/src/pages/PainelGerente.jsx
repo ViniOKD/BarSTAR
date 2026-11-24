@@ -1,15 +1,9 @@
 import { useState } from "react";
 import { AvisoErro } from "../components/gerente/Avisos.jsx";
+import RelatorioVendas from "../components/gerente/RelatorioVendas.jsx";
 import { useDadosApi } from "../hooks/useDadosApi.js";
 import formatarPreco from "../utils/formatarPreco.js";
-
-function periodoInicial() {
-  const fim = new Date();
-  const inicio = new Date();
-  inicio.setDate(inicio.getDate() - 29);
-  const dataLocal = (data) => `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
-  return { data_inicio: dataLocal(inicio), data_fim: dataLocal(fim) };
-}
+import periodoInicial from "../utils/periodoInicial.js";
 
 function Secao({ titulo, descricao, children }) {
   return (
@@ -130,6 +124,9 @@ export default function PainelGerente() {
         <button type="submit" className="bg-hover hover:opacity-90 text-header px-6 py-2.5 rounded-md font-bold shadow-sm cursor-pointer w-full sm:w-auto">Filtrar</button>
       </form>
       <Indicadores key={consulta} consulta={consulta} />
+      <div className="mt-6">
+        <RelatorioVendas dataInicio={aplicados.data_inicio} dataFim={aplicados.data_fim} />
+      </div>
     </div>
   );
 }
