@@ -11,6 +11,16 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 from core.models import ItensPedido
 
+DIAS_SEMANA = (
+    'Seg','Ter','Qua','Qui','Sex','Sáb','Dom',
+)
+
+MESES_ANO = (
+    'Jan', 'Fev', 'Mar', 'Abr',
+    'Mai', 'Jun', 'Jul', 'Ago',
+    'Set', 'Out', 'Nov', 'Dez',
+)
+
 
 def gerar_relatorio(comandas, data_inicio, data_fim, categoria=None, promocao=None):
     """Agrega as vendas das comandas finalizadas do período.
@@ -39,6 +49,8 @@ def gerar_relatorio(comandas, data_inicio, data_fim, categoria=None, promocao=No
     comandas_com_venda = set()
     faturamento = Decimal('0')
     pedidos_por_hora = {}
+    pedidos_por_dia = {}
+    pedidos_por_mes = {}
 
     for venda in vendas.iterator():
         item_id = venda['item_id']
@@ -48,8 +60,15 @@ def gerar_relatorio(comandas, data_inicio, data_fim, categoria=None, promocao=No
         categorias[venda['item__categoria__nome']] += quantidade
         comandas_com_venda.add(venda['pedido__comanda_id'])
         faturamento += venda['preco'] * quantidade
-        hora = timezone.localtime(venda['pedido__data_pedido']).hour
+        data_pedido = timezone.localtime(venda['pedido__data_pedido'])
+        hora = data_pedido.hour
         pedidos_por_hora.setdefault(hora, set()).add(venda['pedido_id'])
+
+        dia_semana = data_pedido.weekday()
+        pedidos_por_dia.setdefault(dia_semana, set()).add(venda['pedido_id'])
+
+        mes_ano = (data_pedido.year, data_pedido.month)
+        pedidos_por_mes.setdefault(mes_ano, set()).add(venda['pedido_id'])
 
     total_comandas = len(comandas_com_venda)
     media = (faturamento / total_comandas).quantize(Decimal('0.01')) if total_comandas else Decimal('0.00')
@@ -72,6 +91,22 @@ def gerar_relatorio(comandas, data_inicio, data_fim, categoria=None, promocao=No
         'horarios': [
             {'hora': hora, 'pedidos': len(pedidos_por_hora.get(hora, ()))}
             for hora in range(24)
+        ],
+        'dias_semana': [
+            {
+                'dia': dia,
+                'pedidos': len(pedidos_por_dia.get(dia, set())),
+            }
+            for dia in range(7)
+        ],
+        'meses': [
+            {
+                'mes': mes,
+                'ano': ano,
+                'nome': f'{MESES_ANO[mes - 1]}/{ano}',
+                'pedidos': len(pedidos),
+            }
+            for (ano, mes), pedidos in sorted(pedidos_por_mes.items())
         ],
     }
 

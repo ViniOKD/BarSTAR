@@ -1,9 +1,15 @@
 from decimal import Decimal
-
 from django.utils import timezone
-
 from core.models import ItensPedido
-from core.services.metricas_recomendacoes import calcular_metricas_associacoes
+from core.services.metricas_recomendacoes import (
+    calcular_dias_baixo_movimento,
+    calcular_metricas_associacoes,
+    calcular_volume_vendas,
+)
+def resumir_dashboard(comandas, produtos, data_inicio, data_fim):
+    comandas = list(comandas.values('id', 'ativa', 'data_abertura', 'data_fechamento'))
+    produtos = list(produtos)
+    nomes = dict(produtos)
 
     finalizadas = {}
     for comanda in comandas:

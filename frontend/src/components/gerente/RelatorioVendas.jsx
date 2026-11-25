@@ -46,6 +46,98 @@ function GraficoHorarios({ horarios }) {
   );
 }
 
+function GraficoDiasSemana({ dias }) {
+  const nomes = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+  const maximo = Math.max(1, ...dias.map((dia) => dia.pedidos));
+
+  const pico = dias.reduce(
+    (maior, dia) => dia.pedidos > maior.pedidos ? dia : maior,
+    dias[0]
+  );
+
+  return (
+    <div>
+      <p className="text-sm text-gray-600 mb-3">
+        {pico.pedidos
+          ? `Maior movimento: ${nomes[pico.dia]}, com ${pico.pedidos} pedidos.`
+          : "Nenhum pedido no período."}
+      </p>
+
+      <div className="flex items-end gap-3 h-40" role="img" aria-label="Pedidos por dia da semana">
+        {dias.map((dia) => (
+          <div
+            key={dia.dia}
+            className="flex-1 h-full flex flex-col justify-end items-center"
+            title={`${nomes[dia.dia]}: ${dia.pedidos} pedidos`}
+          >
+            <div
+              className="w-full bg-hover rounded-t"
+              style={{ height: `${(dia.pedidos / maximo) * 100}%` }}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-3 mt-2">
+        {dias.map((dia) => (
+          <span key={dia.dia} className="flex-1 text-center text-xs text-gray-500">
+            {nomes[dia.dia]}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GraficoMeses({ meses }) {
+  if (!meses.length) {
+    return <p className="text-gray-500">Nenhum pedido no período.</p>;
+  }
+
+  const maximo = Math.max(1, ...meses.map((mes) => mes.pedidos));
+
+  const pico = meses.reduce(
+    (maior, mes) => mes.pedidos > maior.pedidos ? mes : maior,
+    meses[0]
+  );
+
+  return (
+    <div>
+      <p className="text-sm text-gray-600 mb-3">
+        {pico.pedidos
+          ? `Maior movimento: ${pico.nome}, com ${pico.pedidos} pedidos.`
+          : "Nenhum pedido no período."}
+      </p>
+
+      <div className="flex items-end gap-2 h-40" role="img" aria-label="Pedidos por mês">
+        {meses.map((mes) => (
+          <div
+            key={`${mes.ano}-${mes.mes}`}
+            className="flex-1 h-full flex flex-col justify-end items-center"
+            title={`${mes.nome}: ${mes.pedidos} pedidos`}
+          >
+            <div
+              className="w-full bg-hover rounded-t"
+              style={{ height: `${(mes.pedidos / maximo) * 100}%` }}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2 mt-2">
+        {meses.map((mes) => (
+          <span
+            key={`${mes.ano}-${mes.mes}`}
+            className="flex-1 text-center text-xs text-gray-500"
+          >
+            {mes.nome}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function GraficoCategorias({ categorias }) {
   const total = categorias.reduce((soma, categoria) => soma + categoria.quantidade, 0);
   if (!total) return <p className="text-gray-500">Nenhuma venda no período.</p>;
@@ -168,6 +260,23 @@ export default function RelatorioVendas({ dataInicio, dataFim }) {
               </div>
             </div>
 
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-8">
+              <div>
+                <h3 className="font-bold text-header mb-1">Pedidos por dia da semana</h3>
+                <p className="text-sm text-gray-500 mb-3">
+                  Distribuição dos pedidos entre os dias da semana.
+                </p>
+                <GraficoDiasSemana dias={relatorio.dias_semana} />
+              </div>
+
+              <div>
+                <h3 className="font-bold text-header mb-1">Pedidos por mês</h3>
+                <p className="text-sm text-gray-500 mb-3">
+                  Distribuição dos pedidos por mês e ano.
+                </p>
+                <GraficoMeses meses={relatorio.meses} />
+              </div>
+            </div>
             <div>
               <h3 className="font-bold text-header mb-3">Produtos mais vendidos</h3>
               {relatorio.produtos.length === 0 ? <p className="text-gray-500">Nenhum produto vendido no período.</p> : (
