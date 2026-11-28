@@ -25,7 +25,7 @@ from .serializers import (
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
     FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer, FiltroDashboardSerializer,
     FiltroRelatorioSerializer,
-    ItemCardapioSerializer, EnviarPedidoSerializer, DisponibilidadeItemSerializer, SolicitacaoSerializer, HistoricoComandaSerializer, PagamentoSerializer)
+    ItemCardapioSerializer, EnviarPedidoSerializer, DisponibilidadeItemSerializer, SolicitacaoSerializer, HistoricoComandaSerializer,PagamentoSerializer)
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
 )
@@ -161,8 +161,6 @@ class CategoriaViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         return super().update(request, *args, **kwargs)
-
-
 
 class AbrirComandaView(APIView):
     def post(self, request, id_mesa):
@@ -692,88 +690,6 @@ class SolicitacaoViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
             serializer.data,
             status=status.HTTP_201_CREATED)
 
-class ConfirmarPagamentoView(APIView):
-    def post(self,request,id_mesa):
-        serializer = PagamentoSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        with transaction.atomic():
-            #Busca e bloqueiaa a comanda durante o pagamento
-            try:
-                comanda= Comanda.objects.select_for_update().get(mesa_id=id_mesa,ativa=True)
-
-            except Comanda.DoesNotExist:
-                return Response({"erro": "Comanda não encontrada ou já finalizada."},status=status.HTTP_404_NOT_FOUND)
-
-            # Calcula o valor total dos itens consumidos.
-            total_comanda = Decimal('0.00')
-            itens_pedidos = ItensPedido.objects.filter(pedido__comanda=comanda)
-
-            for item in itens_pedidos:
-                total_comanda += item.preco * item.quantidade
-
-            if total_comanda <= 0:
-                return Response(
-                    {"erro": "Não existem itens para pagamento nesta comanda."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Calcula quanto já foi pago anteriormente.
-            total_pago = Decimal('0.00')
-            pagamentos = Pagamento.objects.filter(comanda=comanda)
-
-            for pagamento_anterior in pagamentos:
-                total_pago += pagamento_anterior.valor
-
-            valor_restante = total_comanda - total_pago
-
-            # Verifica se o pagamento não ultrapassa o valor restante.
-            valor_pagamento = serializer.validated_data['valor']
-
-            if valor_pagamento > valor_restante:
-                return Response(
-                    {
-                        "erro": "O valor informado é maior que o valor restante.",
-                        "valor_restante": str(valor_restante)
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Registra o pagamento
-            pagamento = serializer.save(comanda=comanda)
-            total_pago += pagamento.valor
-
-            # Verifica se a comanda foi totalmente paga.
-            finalizada = total_pago == total_comanda
-
-            if finalizada:
-                comanda.ativa = False
-                comanda.data_fechamento = timezone.now()
-                comanda.valor_total = total_comanda
-                comanda.save(update_fields=['ativa','data_fechamento','valor_total'])
-
-                # Marca a solicitação de fechamento como atendida
-                Solicitacao.objects.filter(comanda=comanda,
-                    tipo=Solicitacao.TipoSolicitacao.FECHAMENTO,
-                    status=Solicitacao.StatusSolicitacao.PENDENTE
-                ).update(status=Solicitacao.StatusSolicitacao.ATENDIDA)
-
-        return Response(
-            {
-                "mensagem": (
-                    "Pagamento registrado e comanda finalizada."
-                    if finalizada
-                    else "Pagamento registrado parcialmente."
-                ),
-                "id_pagamento": pagamento.id,
-                "id_comanda": comanda.id,
-                "total_comanda": str(total_comanda),
-                "total_pago": str(total_pago),
-                "valor_restante": str(total_comanda - total_pago),
-                "finalizada": finalizada
-            },
-            status=status.HTTP_200_OK
-        )
 def dados_do_usuario(usuario):
     # Dados que o front usa para saber quem entrou e para onde levar.
     return {
@@ -960,3 +876,86 @@ class RecomendacoesClienteView(APIView):
         }
         serializer = ItemCardapioSerializer(sugestoes, many=True, context=contexto)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class ConfirmarPagamentoView(APIView):
+    def post(self,request,id_mesa):
+        serializer = PagamentoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            #Busca e bloqueiaa a comanda durante o pagamento
+            try:
+                comanda= Comanda.objects.select_for_update().get(mesa_id=id_mesa,ativa=True)
+
+            except Comanda.DoesNotExist:
+                return Response({"erro": "Comanda não encontrada ou já finalizada."},status=status.HTTP_404_NOT_FOUND)
+
+            # Calcula o valor total dos itens consumidos.
+            total_comanda = Decimal('0.00')
+            itens_pedidos = ItensPedido.objects.filter(pedido__comanda=comanda)
+
+            for item in itens_pedidos:
+                total_comanda += item.preco * item.quantidade
+
+            if total_comanda <= 0:
+                return Response(
+                    {"erro": "Não existem itens para pagamento nesta comanda."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Calcula quanto já foi pago anteriormente.
+            total_pago = Decimal('0.00')
+            pagamentos = Pagamento.objects.filter(comanda=comanda)
+
+            for pagamento_anterior in pagamentos:
+                total_pago += pagamento_anterior.valor
+
+            valor_restante = total_comanda - total_pago
+
+            # Verifica se o pagamento não ultrapassa o valor restante.
+            valor_pagamento = serializer.validated_data['valor']
+
+            if valor_pagamento > valor_restante:
+                return Response(
+                    {
+                        "erro": "O valor informado é maior que o valor restante.",
+                        "valor_restante": str(valor_restante)
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Registra o pagamento
+            pagamento = serializer.save(comanda=comanda)
+            total_pago += pagamento.valor
+
+            # Verifica se a comanda foi totalmente paga.
+            finalizada = total_pago == total_comanda
+
+            if finalizada:
+                comanda.ativa = False
+                comanda.data_fechamento = timezone.now()
+                comanda.valor_total = total_comanda
+                comanda.save(update_fields=['ativa','data_fechamento','valor_total'])
+
+                # Marca a solicitação de fechamento como atendida
+                Solicitacao.objects.filter(comanda=comanda,
+                    tipo=Solicitacao.TipoSolicitacao.FECHAMENTO,
+                    status=Solicitacao.StatusSolicitacao.PENDENTE
+                ).update(status=Solicitacao.StatusSolicitacao.ATENDIDA)
+
+        return Response(
+            {
+                "mensagem": (
+                    "Pagamento registrado e comanda finalizada."
+                    if finalizada
+                    else "Pagamento registrado parcialmente."
+                ),
+                "id_pagamento": pagamento.id,
+                "id_comanda": comanda.id,
+                "total_comanda": str(total_comanda),
+                "total_pago": str(total_pago),
+                "valor_restante": str(total_comanda - total_pago),
+                "finalizada": finalizada
+            },
+            status=status.HTTP_200_OK
+        )
