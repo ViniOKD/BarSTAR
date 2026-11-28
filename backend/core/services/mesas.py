@@ -91,12 +91,12 @@ def validar_mesa_para_juntar(mesa):
     status = status_atual(mesa)
     if status != Mesa.Status.LIVRE:
         raise ValidationError({
-            "erro": f"A mesa {mesa.id} não pode ser agrupada pois está com status {status}.",
+            "erro": f"A mesa {mesa.numero_mesa} não pode ser agrupada pois está com status {status}.",
         })
 
     if mesa.mesas_agrupadas.exists():
         raise ValidationError({
-            "erro": f"A mesa {mesa.id} já é a principal de outro grupo. Separe-a antes de agrupar.",
+            "erro": f"A mesa {mesa.numero_mesa} já é a principal de outro grupo. Separe-a antes de agrupar.",
         })
 
 
@@ -106,7 +106,7 @@ def juntar_mesas(mesa_principal, mesas_ids):
 
     if mesa_principal.status in (Mesa.Status.INATIVA, Mesa.Status.AGRUPADA):
         raise ValidationError({
-            "erro": f"A mesa {mesa_principal.id} não pode ser a principal pois está com status {mesa_principal.status}.",
+            "erro": f"A mesa {mesa_principal.numero_mesa} não pode ser a principal pois está com status {mesa_principal.status}.",
         })
 
     # Bloqueia as mesas para que outra requisição não as agrupe ao mesmo tempo.

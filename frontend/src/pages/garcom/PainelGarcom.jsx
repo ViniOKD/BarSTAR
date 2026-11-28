@@ -25,7 +25,7 @@ export default function PainelGarcom() {
 
         const mesasFormatadas = lista.map((comanda) => ({
           id: comanda.id,
-          numero: comanda.mesa,
+          numero: comanda.numero_mesa,
           comanda: comanda.id,
 
           pedidos: (comanda.pedidos ?? []).map((pedido) => ({

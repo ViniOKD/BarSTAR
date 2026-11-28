@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (    HistoricoComandasView, RecomendacoesClienteView, ReservaViewSet, health, PedidoViewSet, CategoriaViewSet, GerenteViewSet,
     FuncionarioViewSet, MesaViewSet, CozinhaViewSet, ItemViewSet,
     ItensPedidoViewSet, AbrirComandaView, ItensPromocaoViewSet,
-    PromocaoViewSet, ConsultarComandaView, EnviarPedidoView,
+    PromocaoViewSet, ConsultarComandaView, MesaPorNumeroView, EnviarPedidoView,
     SolicitacaoViewSet, LoginView, LogoutView, SessaoView, ComandasGarcomView, DashboardGerenteView,
     RelatorioVendasView,
 )
@@ -26,6 +26,8 @@ urlpatterns = [
     path("login/", LoginView.as_view(), name='login'),
     path("sessao/", SessaoView.as_view(), name='sessao'),
     path("logout/", LogoutView.as_view(), name='logout'),
+    # Fica antes do router para não ser confundida com mesas/<id>/.
+    path('mesas/numero/<int:numero_mesa>/', MesaPorNumeroView.as_view(), name='mesa-por-numero'),
     path('mesas/<int:id_mesa>/abrir-comanda/', AbrirComandaView.as_view(), name='abrir-comanda'),
     path('mesas/<int:id_mesa>/comanda/',ConsultarComandaView.as_view(),name='consultar-comanda'),
     path('enviar-pedido/', EnviarPedidoView.as_view(), name='enviar-pedido'),

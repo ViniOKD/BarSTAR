@@ -183,7 +183,7 @@ export default function SolicitacoesGarcom() {
 
   // Obtém o número da mesa 
   const obterMesa = (solicitacao) => {
-    return solicitacao.mesa ?? "Não identificada";
+    return solicitacao.numero_mesa ?? "Não identificada";
   };
 
   // Formata a data e o horário das solicitações
@@ -237,7 +237,7 @@ export default function SolicitacoesGarcom() {
             const mesa = solicitacao.mesa ?? "Não identificada";
             return [
                 String(mesa),
-                { id: String(mesa), numero: mesa },
+                { id: String(mesa), numero: solicitacao.numero_mesa ?? mesa },
             ];
         })
     ).values(),

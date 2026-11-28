@@ -12,13 +12,21 @@ export function FormAberturaComanda({ aoSucesso }) {
   const [carregando, setCarregando] = useState(false);
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
   const [segundos, setSegundos] = useState(5);
-  // Estado para armazenar o número da mesa do tablet
-  const [idMesa] = useState(() => {
-    const parametrosUrl = new URLSearchParams(window.location.search);
-    return parametrosUrl.get('mesa') || localStorage.getItem('id_mesa_tablet') || null;
-  });
+  // Com ?mesa= na URL o tablet está sendo configurado; o valor é o número da mesa.
+  const [numeroNaUrl] = useState(() => new URLSearchParams(window.location.search).get('mesa'));
+  // O tablet guarda o id da mesa (usado nas rotas) e o número (mostrado na tela).
+  const [idMesa, setIdMesa] = useState(() => (numeroNaUrl ? null : localStorage.getItem('id_mesa_tablet')));
+  const [numeroMesa, setNumeroMesa] = useState(() => numeroNaUrl || localStorage.getItem('numero_mesa_tablet'));
+  const [identificandoMesa, setIdentificandoMesa] = useState(Boolean(numeroNaUrl));
   const mesaIdentificada = Boolean(idMesa);
-  
+  const numeroExibido = numeroMesa ? String(numeroMesa).padStart(2, '0') : '--';
+
+  function guardarMesa(id, numero) {
+    localStorage.setItem('id_mesa_tablet', id);
+    localStorage.setItem('numero_mesa_tablet', numero);
+    setIdMesa(String(id));
+    setNumeroMesa(numero);
+  }
 
   useEffect(() => {
 
@@ -33,16 +41,39 @@ export function FormAberturaComanda({ aoSucesso }) {
     // COMO CONFIGURAR O TABLET: O gerente deve acessar o sistema pela primeira vez
     // passando o número da mesa na URL do tablet (ex: http://localhost:5173/?mesa=5).
     // Se o tablet mudar de mesa física, basta repetir esse processo com o novo número.
-    const parametrosUrl = new URLSearchParams(window.location.search);
-    const mesaUrl = parametrosUrl.get('mesa');
-
-    if (mesaUrl) {
-      // Se obteve identificação, o tablet sabe sempre a qual mesa pertence mesmo que reiniciado
-      localStorage.setItem('id_mesa_tablet', mesaUrl);
+    if (numeroNaUrl) {
       // Limpa a URL para o cliente não ver o parâmetro
       window.history.replaceState(null, '', window.location.pathname);
+
+      // Troca o número pelo id da mesa, que é o que as rotas da API usam.
+      fetch(`/api/mesas/numero/${parseInt(numeroNaUrl, 10)}/`)
+        .then(async (resposta) => {
+          const dados = await resposta.json();
+          if (resposta.ok) {
+            // O tablet sabe sempre a qual mesa pertence mesmo que reiniciado
+            guardarMesa(dados.id, dados.numero_mesa);
+          } else {
+            localStorage.removeItem('id_mesa_tablet');
+            localStorage.removeItem('numero_mesa_tablet');
+            setNumeroMesa(null);
+            setErroGeral(dados.erro || 'Mesa não encontrada.');
+          }
+        })
+        .catch(() => setErroGeral('Não foi possível identificar a mesa. Verifique a conexão.'))
+        .finally(() => setIdentificandoMesa(false));
+      return;
     }
 
+    // Atualiza o número caso o gerente tenha trocado (a rota responde mesmo sem comanda ativa).
+    if (idMesa) {
+      fetch(`/api/mesas/${parseInt(idMesa, 10)}/comanda/`)
+        .then((resposta) => resposta.json())
+        .then((dados) => {
+          if (dados.numero_mesa != null) guardarMesa(idMesa, dados.numero_mesa);
+        })
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // Contagem regressiva do popup de confirmação
   useEffect(() => {
@@ -153,6 +184,7 @@ export function FormAberturaComanda({ aoSucesso }) {
       // Salva localmente e redireciona
       localStorage.setItem('comandaAtiva', 'true');
       localStorage.setItem('id_comanda', dados.id_comanda);
+      if (dados.numero_mesa != null) guardarMesa(idMesa, dados.numero_mesa);
       localStorage.setItem('clienteCPF', apenasNumerosCPF);
       localStorage.setItem('clienteTelefone', apenasNumerosTel);
 
@@ -182,7 +214,7 @@ export function FormAberturaComanda({ aoSucesso }) {
         {/* Um indicador de mesa embaixo da logo */}
         <div className="mt-auto pt-10">
           <div className="bg-[#2a3037] px-6 py-2 rounded-full border border-[#D4AF43]/20">
-            <p className="text-[#F4F0E5] font-semibold tracking-widest">MESA {idMesa ? idMesa.padStart(2,'0') : '--'}</p>
+            <p className="text-[#F4F0E5] font-semibold tracking-widest">MESA {numeroExibido}</p>
           </div>
         </div>
       </div>
@@ -192,7 +224,7 @@ export function FormAberturaComanda({ aoSucesso }) {
         
         {/* Cartão do Formulário */}
         <div className="w-full max-w-xl bg-white p-10 rounded-3xl shadow-xl border border-gray-100">
-          {!mesaIdentificada && (
+          {!mesaIdentificada && !identificandoMesa && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-center text-sm font-medium text-red-600">
             Este tablet não está configurado com uma mesa. Chame o gerente para configurar.
           </div>
@@ -281,7 +313,7 @@ export function FormAberturaComanda({ aoSucesso }) {
           </div>
           <h3 className="text-2xl font-bold text-header">Comanda aberta com sucesso!</h3>
           <p className="mt-2 text-gray-500">
-            A comanda da mesa {idMesa ? idMesa.padStart(2, '0') : '--'} foi criada.
+            A comanda da mesa {numeroExibido} foi criada.
           </p>
           <p className="mt-4 text-sm text-gray-400">
             Você será direcionado ao cardápio em {segundos}s...

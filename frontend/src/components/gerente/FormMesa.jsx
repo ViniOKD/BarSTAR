@@ -7,8 +7,9 @@ const campoClasse = "w-full border border-gray-300 p-3 rounded-md focus:outline-
 const rotuloClasse = "block text-sm font-bold mb-2 text-header";
 
 // Formulário de cadastro e edição de mesa. "mesa" vazia significa cadastro.
-export default function FormMesa({ mesa, garcons, onFechar, onSucesso, onIrParaReserva }) {
+export default function FormMesa({ mesa, numeroSugerido, garcons, onFechar, onSucesso, onIrParaReserva }) {
   const [formulario, setFormulario] = useState({
+    numero_mesa: mesa?.numero_mesa ?? numeroSugerido,
     capacidade: mesa?.capacidade || 4,
     status: mesa?.status || "LIVRE",
     garcom_id: mesa?.garcom?.id || "",
@@ -35,6 +36,7 @@ export default function FormMesa({ mesa, garcons, onFechar, onSucesso, onIrParaR
       await requisicaoApi(mesa ? `/api/mesas/${mesa.id}/` : "/api/mesas/", {
         method: mesa ? "PUT" : "POST",
         body: JSON.stringify({
+          numero_mesa: Number(formulario.numero_mesa),
           capacidade: Number(formulario.capacidade),
           status: formulario.status,
           garcom_id: Number(formulario.garcom_id),
@@ -47,10 +49,15 @@ export default function FormMesa({ mesa, garcons, onFechar, onSucesso, onIrParaR
   }
 
   return (
-    <Modal titulo={mesa ? `Editar Mesa ${mesa.id}` : "Nova Mesa"} onFechar={onFechar}>
+    <Modal titulo={mesa ? `Editar Mesa ${mesa.numero_mesa}` : "Nova Mesa"} onFechar={onFechar}>
       <ErroFormulario mensagem={erro} />
 
       <form onSubmit={salvar} className="flex flex-col gap-4">
+        <label>
+          <span className={rotuloClasse}>Número da Mesa</span>
+          <input required type="number" min="1" name="numero_mesa" value={formulario.numero_mesa} onChange={alterar} className={campoClasse} />
+        </label>
+
         <label>
           <span className={rotuloClasse}>Capacidade (Lugares)</span>
           <input required type="number" min="1" name="capacidade" value={formulario.capacidade} onChange={alterar} className={campoClasse} />
@@ -76,6 +83,13 @@ export default function FormMesa({ mesa, garcons, onFechar, onSucesso, onIrParaR
             <option value="INATIVA">Inativa</option>
           </select>
         </label>
+
+        {mesa && (
+          <p className="text-xs text-gray-500">
+            Para configurar o tablet desta mesa, acesse:{" "}
+            <span className="font-mono text-header">{`${window.location.origin}/?mesa=${mesa.numero_mesa}`}</span>
+          </p>
+        )}
 
         <div className="flex justify-end gap-4 mt-4 pt-4 border-t border-header/10">
           <button type="button" onClick={onFechar} className="bg-white text-header px-5 py-2.5 rounded-md font-bold border border-gray-300 cursor-pointer">

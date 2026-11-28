@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { mensagemDoErro, requisicaoApi } from "../../utils/api.js";
-import { reservaVazia } from "../../utils/mesas.js";
+import { numeroDaMesa, reservaVazia } from "../../utils/mesas.js";
 import { ErroFormulario } from "./Avisos.jsx";
 import Modal from "./Modal.jsx";
 import ModalConfirmacao from "./ModalConfirmacao.jsx";
@@ -9,7 +9,7 @@ const campoClasse = "w-full border border-gray-300 p-2.5 rounded-md focus:outlin
 const rotuloClasse = "block text-xs font-bold mb-1 text-header";
 
 // Uma reserva da lista. Clicar nela carrega os dados no formulário para edição.
-function ItemReserva({ reserva, selecionada, onEditar, onCancelar }) {
+function ItemReserva({ reserva, mesas, selecionada, onEditar, onCancelar }) {
   const emGrupo = reserva.mesas_agrupadas_ids.length > 0;
   const cor = emGrupo ? "bg-yellow-50 border-hover hover:bg-yellow-100" : "bg-gray-50 border-gray-200 hover:bg-gray-100";
 
@@ -38,7 +38,8 @@ function ItemReserva({ reserva, selecionada, onEditar, onCancelar }) {
         </p>
         {emGrupo && (
           <p className="text-xs font-semibold text-header mt-1">
-            Mesas Agrupadas: {reserva.mesa} e {reserva.mesas_agrupadas_ids.join(", ")}
+            Mesas Agrupadas: {numeroDaMesa(mesas, reserva.mesa)} e{" "}
+            {reserva.mesas_agrupadas_ids.map((id) => numeroDaMesa(mesas, id)).join(", ")}
           </p>
         )}
       </div>
@@ -65,7 +66,7 @@ function SelecaoDeMesas({ mesas, selecionadas, onAlternar }) {
               }`}
             >
               <input type="checkbox" className="hidden" checked={marcada} onChange={() => onAlternar(mesa.id)} />
-              Mesa {mesa.id}
+              Mesa {mesa.numero_mesa}
             </label>
           );
         })}
@@ -154,7 +155,7 @@ export default function ModalReservas({ mesa, mesas, onFechar, onSucesso }) {
 
   return (
     <Modal
-      titulo={`Agenda da Mesa ${mesa.id}`}
+      titulo={`Agenda da Mesa ${mesa.numero_mesa}`}
       subtitulo={`Capacidade: ${mesa.capacidade} lugares`}
       largura="max-w-lg"
       onFechar={onFechar}
@@ -172,6 +173,7 @@ export default function ModalReservas({ mesa, mesas, onFechar, onSucesso }) {
               <ItemReserva
                 key={reserva.id}
                 reserva={reserva}
+                mesas={mesas}
                 selecionada={editandoId === reserva.id}
                 onEditar={editar}
                 onCancelar={pedirCancelamento}

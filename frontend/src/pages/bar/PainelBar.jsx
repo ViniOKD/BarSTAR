@@ -163,7 +163,7 @@ export default function PainelBar() {
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
                 <div>
                   <h2 className="font-header text-xl font-bold text-header">
-                    Mesa {pedido.mesa?.id ?? "--"}
+                    Mesa {pedido.mesa?.numero_mesa ?? "--"}
                   </h2>
                   <p className="text-sm text-gray-500">
                     Comanda #{pedido.comanda ?? "--"} · Pedido #{pedido.id}

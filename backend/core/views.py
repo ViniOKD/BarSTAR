@@ -212,15 +212,31 @@ class AbrirComandaView(APIView):
         return Response(
             {
                 "mensagem": "Comanda aberta com sucesso!",
-                "id_comanda": nova_comanda.id
+                "id_comanda": nova_comanda.id,
+                "numero_mesa": mesa.numero_mesa,
             },
             status=status.HTTP_201_CREATED
         )
 
+class MesaPorNumeroView(APIView):
+    # O tablet é configurado com o número da mesa (?mesa=10) e troca pelo id aqui.
+    # Sem login, como as outras rotas do tablet; devolve só o necessário.
+    def get(self, request, numero_mesa):
+        mesa = Mesa.objects.filter(numero_mesa=numero_mesa).first()
+        if mesa is None:
+            return Response(
+                {"erro": f"Não existe mesa com o número {numero_mesa}."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response({"id": mesa.id, "numero_mesa": mesa.numero_mesa})
+
+
 class ConsultarComandaView(APIView):
     def get(self, request, id_mesa):
         # Verifica se a mesa existe
-        if not Mesa.objects.filter(id=id_mesa).exists():
+        mesa = Mesa.objects.filter(id=id_mesa).first()
+        if mesa is None:
             return Response(
                 {"erro": "Mesa informada não existe no sistema."},
                 status=status.HTTP_404_NOT_FOUND
@@ -230,6 +246,7 @@ class ConsultarComandaView(APIView):
         comanda = (
             Comanda.objects
             .filter(mesa_id=id_mesa, ativa=True)
+            .select_related("mesa")
             .prefetch_related("pedidos__itens_pedido__item")
             .order_by("-data_abertura")
             .first()
@@ -237,7 +254,8 @@ class ConsultarComandaView(APIView):
 
         if comanda is None:
             return Response(
-                {"erro": "Esta mesa não possui uma comanda ativa."},
+                # O tablet usa o número para se identificar antes de abrir a comanda.
+                {"erro": "Esta mesa não possui uma comanda ativa.", "numero_mesa": mesa.numero_mesa},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -340,7 +358,7 @@ class ReservaViewSet(viewsets.ModelViewSet):
             return Response({"erro": "Reserva não encontrada ou já removida."}, status=status.HTTP_404_NOT_FOUND)
         
 class MesaViewSet(viewsets.ModelViewSet):
-    queryset = Mesa.objects.all()
+    queryset = Mesa.objects.select_related("garcom", "mesa_agrupada")
     serializer_class = MesaSerializer
     permission_classes = [SomenteGerente]
 
@@ -387,7 +405,7 @@ class MesaViewSet(viewsets.ModelViewSet):
 
         if (mesa.status == Mesa.Status.AGRUPADA or mesa.mesa_agrupada is not None) and data_reserva_str == hoje_str:
             return Response(
-                {"erro": f"A Mesa #{mesa.id} está agrupada à Mesa #{mesa.mesa_agrupada_id}. Faça a reserva diretamente na mesa principal."},
+                {"erro": f"A Mesa #{mesa.numero_mesa} está agrupada à Mesa #{mesa.mesa_agrupada.numero_mesa if mesa.mesa_agrupada else '-'}. Faça a reserva diretamente na mesa principal."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -413,7 +431,7 @@ class MesaViewSet(viewsets.ModelViewSet):
         juntar_mesas(mesa_principal, mesas_ids)
 
         return Response(
-            {"mensagem": f"Mesas agrupadas com sucesso à Mesa {mesa_principal.id}!"}, 
+            {"mensagem": f"Mesas agrupadas com sucesso à Mesa {mesa_principal.numero_mesa}!"}, 
             status=status.HTTP_200_OK
         )
 
@@ -760,7 +778,7 @@ class ComandasGarcomView(APIView):
         if cargo_de(request.user) == Funcionario.Cargo.GARCOM:
             comandas = comandas.filter(mesa__garcom=request.user)
 
-        comandas = comandas.prefetch_related(
+        comandas = comandas.select_related("mesa").prefetch_related(
             "pedidos__itens_pedido__item"
         ).order_by("id")
 
@@ -840,7 +858,8 @@ class HistoricoComandasView(APIView):
             comandas = comandas.filter(data_abertura__lte=f"{data_fim} 23:59:59") #mudar isso quando feito o fechamento da comanda
             
         if mesa:
-            comandas = comandas.filter(mesa__id=mesa) 
+            # O gerente filtra pelo número que vê na tela, não pelo id interno.
+            comandas = comandas.filter(mesa__numero_mesa=mesa) 
             
         if garcom:
             comandas = comandas.filter(garcom__nome__icontains=garcom)

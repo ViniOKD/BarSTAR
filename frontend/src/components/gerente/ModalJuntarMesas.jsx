@@ -32,7 +32,7 @@ export default function ModalJuntarMesas({ mesaPrincipal, mesas, onFechar, onSuc
         method: "POST",
         body: JSON.stringify({ mesas_ids: selecionadas }),
       });
-      onSucesso(`Mesas agrupadas à Mesa ${mesaPrincipal.id} com sucesso!`);
+      onSucesso(`Mesas agrupadas à Mesa ${mesaPrincipal.numero_mesa} com sucesso!`);
     } catch (falha) {
       setErro(mensagemDoErro(falha));
       setEnviando(false);
@@ -41,7 +41,7 @@ export default function ModalJuntarMesas({ mesaPrincipal, mesas, onFechar, onSuc
 
   return (
     <Modal
-      titulo={`Juntar à Mesa ${mesaPrincipal.id}`}
+      titulo={`Juntar à Mesa ${mesaPrincipal.numero_mesa}`}
       subtitulo="Selecione as mesas livres que serão agrupadas a esta mesa principal."
       onFechar={onFechar}
     >
@@ -64,7 +64,7 @@ export default function ModalJuntarMesas({ mesaPrincipal, mesas, onFechar, onSuc
               >
                 <div className="flex items-center gap-3">
                   <input type="checkbox" checked={marcada} onChange={() => alternarSelecao(mesa.id)} className="w-4 h-4 text-hover rounded focus:ring-hover cursor-pointer" />
-                  <span className="font-bold text-header">Mesa {mesa.id}</span>
+                  <span className="font-bold text-header">Mesa {mesa.numero_mesa}</span>
                 </div>
                 <span className="text-xs text-header/70 font-medium">{mesa.capacidade} lugares</span>
               </label>
