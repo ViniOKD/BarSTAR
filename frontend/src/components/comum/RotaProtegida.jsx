@@ -13,12 +13,12 @@ export default function RotaProtegida({ cargos, children }) {
         if (cargos.includes(dados.usuario.cargo)) {
           setLiberado(true);
         } else {
-          window.location.replace("/configuracoes");
+          window.location.replace("/login");
         }
       })
       .catch((falha) => {
         if (falha.status === 401) {
-          window.location.replace("/configuracoes");
+          window.location.replace("/login");
         } else {
           setErro("Não foi possível verificar o login. Recarregue a página.");
         }

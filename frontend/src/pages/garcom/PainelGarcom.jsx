@@ -3,10 +3,10 @@ import { useEffect, useState } from "react";
 import { requisicaoApi } from "../../utils/api";
 
 export default function PainelGarcom() {
-  const [mesas, setMesas] = useState([]);
+  const [comandas, setComandas] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
-  const [mesaExpandida, setMesaExpandida] = useState(null);
+  const [comandaExpandida, setComandaExpandida] = useState(null);
 
   // Mudar este número faz a busca rodar de novo (botão "Tentar novamente").
   const [tentativa, setTentativa] = useState(0);
@@ -23,10 +23,9 @@ export default function PainelGarcom() {
           ? resposta
           : resposta.results ?? [];
 
-        const mesasFormatadas = lista.map((comanda) => ({
+        const comandasFormatadas = lista.map((comanda) => ({
           id: comanda.id,
-          numero: comanda.numero_mesa,
-          comanda: comanda.id,
+          numeroMesa: comanda.numero_mesa,
 
           pedidos: (comanda.pedidos ?? []).map((pedido) => ({
             id: pedido.id,
@@ -41,7 +40,7 @@ export default function PainelGarcom() {
           })),
         }));
 
-        setMesas(mesasFormatadas);
+        setComandas(comandasFormatadas);
         setErro("");
       } catch (erro) {
         console.error("Erro ao buscar comandas:", erro);
@@ -105,16 +104,16 @@ export default function PainelGarcom() {
     )[0];
   };
 
-  const alternarDetalhes = (mesaId) => {
-    setMesaExpandida((atual) =>
-      atual === mesaId ? null : mesaId
+  const alternarDetalhes = (comandaId) => {
+    setComandaExpandida((atual) =>
+      atual === comandaId ? null : comandaId
     );
   };
 
-  const quantidadeMesas = mesas.length;
+  const quantidadeComandas = comandas.length;
 
-  const quantidadePedidos = mesas.reduce(
-    (total, mesa) => total + mesa.pedidos.length,
+  const quantidadePedidos = comandas.reduce(
+    (total, comanda) => total + comanda.pedidos.length,
     0
   );
 
@@ -163,7 +162,7 @@ export default function PainelGarcom() {
             Mesas atendidas
           </p>
           <p className="mt-2 text-3xl font-bold text-header">
-            {quantidadeMesas}
+            {quantidadeComandas}
           </p>
         </div>
 
@@ -183,7 +182,7 @@ export default function PainelGarcom() {
           Minhas mesas
         </h2>
 
-        {mesas.length === 0 ? (
+        {comandas.length === 0 ? (
           <div className="rounded-xl border border-[#D4AF43] bg-white p-5">
             <p className="font-semibold">
               Nenhuma mesa sob sua responsabilidade.
@@ -194,24 +193,24 @@ export default function PainelGarcom() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-            {mesas.map((mesa) => {
-              const ultimoPedido = obterUltimoPedido(mesa.pedidos);
-              const expandida = mesaExpandida === mesa.id;
+            {comandas.map((comanda) => {
+              const ultimoPedido = obterUltimoPedido(comanda.pedidos);
+              const expandida = comandaExpandida === comanda.id;
 
               return (
                 <article
-                  key={mesa.id}
+                  key={comanda.id}
                   className="flex flex-col gap-5 rounded-xl border border-[#D4AF43] bg-white p-5"
                 >
                   {/* Cabeçalho da mesa */}
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <h3 className="font-header text-lg font-bold">
-                        Mesa {mesa.numero}
+                        Mesa {comanda.numeroMesa}
                       </h3>
 
                       <p className="mt-1 text-sm font-extralight">
-                        Comanda #{mesa.comanda}
+                        Comanda #{comanda.id}
                       </p>
                     </div>
 
@@ -265,12 +264,12 @@ export default function PainelGarcom() {
                   {/* Botão para expandir ou recolher */}
                   <button
                     type="button"
-                    onClick={() => alternarDetalhes(mesa.id)}
+                    onClick={() => alternarDetalhes(comanda.id)}
                     className="flex items-center justify-center gap-2 rounded-lg border border-[#D4AF43] px-4 py-3 text-sm font-semibold text-header transition hover:bg-[#D4AF43]/10"
                   >
                     {expandida
                       ? "Ocultar detalhes"
-                      : `Ver todos os pedidos (${mesa.pedidos.length})`}
+                      : `Ver todos os pedidos (${comanda.pedidos.length})`}
 
                     <span>{expandida ? "▲" : "▼"}</span>
                   </button>
@@ -282,7 +281,7 @@ export default function PainelGarcom() {
                         Histórico de pedidos
                       </h4>
 
-                      {[...mesa.pedidos]
+                      {[...comanda.pedidos]
                         .sort(
                           (a, b) =>
                             new Date(b.horario) - new Date(a.horario)

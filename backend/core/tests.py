@@ -8,8 +8,8 @@ from rest_framework.test import APIClient
 from .models import Categoria, Comanda, Cozinha, Funcionario, Gerente, Item, ItensPedido, Mesa, Pedido, Reserva, Solicitacao
 
 
-class MigrationTests(SimpleTestCase):
-    def test_migrations_have_no_conflicting_branches(self):
+class MigracoesTests(SimpleTestCase):
+    def test_migracoes_nao_tem_ramos_em_conflito(self):
         self.assertEqual(MigrationLoader(None).detect_conflicts(), {})
 
 

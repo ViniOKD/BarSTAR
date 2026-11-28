@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { requisicaoApi } from "../utils/api";
 import { paginaInicialDoCargo } from "../utils/funcionarios";
-import "./Configuracoes.css";
+import "./Login.css";
 
 function IconeCampo({ senha = false }) {
   return (
@@ -15,7 +15,7 @@ function IconeCampo({ senha = false }) {
   );
 }
 
-export default function Configuracoes() {
+export default function Login() {
   const [cpf, setCpf] = useState("");
   const [senha, setSenha] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
@@ -54,7 +54,7 @@ export default function Configuracoes() {
   }
 
   return (
-    <main className="configuracoes-login">
+    <main className="tela-login">
       <section className="login-cartao" aria-labelledby="titulo-login">
         <header className="login-cabecalho">
           <h1 id="titulo-login">Login</h1>

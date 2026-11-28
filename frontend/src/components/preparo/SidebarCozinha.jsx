@@ -39,7 +39,7 @@ function BotaoSair() {
 
       if (!resposta.ok) throw new Error("Falha ao sair");
 
-      window.location.replace("/configuracoes");
+      window.location.replace("/login");
     } catch {
       setErro("Não foi possível sair. Tente novamente.");
       setSaindo(false);

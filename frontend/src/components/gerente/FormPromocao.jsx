@@ -70,7 +70,7 @@ export default function FormPromocao({ promocao, produtos, salvando, erros, onSa
               {conflito.produto}: “{conflito.promocao}”, de {formatarDataPromocao(conflito.data_inicio)} até {formatarDataPromocao(conflito.data_fim)} (São Paulo).
             </li>)}
           </ul>}
-          {(erros.status === 401 || erros.status === 403) && <a href="/configuracoes" className="mt-2 inline-block underline">Acessar login do gerente</a>}
+          {(erros.status === 401 || erros.status === 403) && <a href="/login" className="mt-2 inline-block underline">Acessar login do gerente</a>}
         </div>}
         {Object.values(errosLocais).some(Boolean) && <p role="alert" className="mb-3 text-red-700">Revise os campos indicados antes de salvar.</p>}
 

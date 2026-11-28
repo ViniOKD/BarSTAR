@@ -136,7 +136,7 @@ def separar_mesas(mesa_principal):
 def validar_exclusao(mesa):
     if tem_comanda_ativa(mesa):
         raise ValidationError({
-            "erro": "Não é possivel excluir esta mesa pois ela possui uma comanda ativa em andamento.",
+            "erro": "Não é possível excluir esta mesa pois ela possui uma comanda ativa em andamento.",
         })
 
 
@@ -144,7 +144,7 @@ def validar_alteracao(mesa, novo_status):
     # Inativar a mesa com cliente sentado deixaria a comanda sem mesa utilizável.
     if novo_status == Mesa.Status.INATIVA and tem_comanda_ativa(mesa):
         raise ValidationError({
-            "erro": "Não é possível inativa esta mesa pois ela possui uma comanda ativa.",
+            "erro": "Não é possível inativar esta mesa pois ela possui uma comanda ativa.",
         })
 
 

@@ -5,7 +5,7 @@ import Bebidas from "./pages/cliente/Bebidas";
 import Comidas from "./pages/cliente/Comidas";
 import Comanda from "./pages/cliente/Comanda";
 import PromocoesCliente from "./pages/cliente/PromocoesCliente";
-import Configuracoes from "./pages/Configuracoes";
+import Login from "./pages/Login";
 import PainelGerente from "./pages/gerente/PainelGerente";
 import { SidebarGerente } from "./components/gerente/SidebarGerente";
 import RotaProtegida from "./components/comum/RotaProtegida";
@@ -330,9 +330,9 @@ useEffect(() => {
     );
   }
 
-  // O endereço antigo do login do garçom leva ao login único.
-  if (paginaAtual === "/configuracoes" || paginaAtual === "/login/garcom") {
-    return <Configuracoes />;
+  // "/configuracoes" e "/login/garcom" são endereços antigos do login, mantidos para links salvos.
+  if (["/login", "/configuracoes", "/login/garcom"].includes(paginaAtual)) {
+    return <Login />;
   }
   
   if (Object.hasOwn(telasGerente, paginaAtual)) {

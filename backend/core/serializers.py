@@ -10,7 +10,7 @@ from datetime import timedelta
 from django.db.models import prefetch_related_objects
 from django.utils import timezone
 from .services.promocoes import salvar_promocao
-from .services.dar_preco import obter_precos_atuais
+from .services.precos import obter_precos_atuais
 from .services.mesas import status_atual
 from .permissoes import tem_permissao
 from .validadores import validar_cpf, validar_telefone

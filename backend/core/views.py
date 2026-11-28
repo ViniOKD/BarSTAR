@@ -16,7 +16,7 @@ from datetime import datetime, time
 from decimal import Decimal
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
-from .services.dar_preco import calcular_preco_final
+from .services.precos import calcular_preco_final
 from .models import (
     Gerente, Funcionario, Mesa, Cozinha, Categoria, Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao, Reserva)
 from .serializers import (
@@ -29,7 +29,7 @@ from .serializers import (
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
 )
-from .services.dar_preco import obter_precos_atuais
+from .services.precos import obter_precos_atuais
 from .services.dashboard_gerente import resumir_dashboard
 from .services.relatorio_vendas import gerar_csv, gerar_pdf, gerar_relatorio
 from .services.pedidos import cozinha_do_usuario, enviar_pedido
