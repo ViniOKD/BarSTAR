@@ -1,7 +1,7 @@
 from django.db import connection, transaction
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET
 from django.contrib.auth import logout
 from rest_framework import viewsets, status, mixins, viewsets, status
@@ -291,15 +291,17 @@ class ReservaViewSet(viewsets.ModelViewSet):
     permission_classes = [SomenteGerente]
 
     def destroy(self, request, *args, **kwargs):
+        # Só a reserva inexistente vira 404; qualquer outra falha segue como erro do servidor.
         try:
             reserva = self.get_object()
-            reserva.delete()
-            return Response(
-                {"mensagem": "Reserva cancelada com sucesso!"}, 
-                status=status.HTTP_200_OK
-            )
-        except Exception as e:
+        except Http404:
             return Response({"erro": "Reserva não encontrada ou já removida."}, status=status.HTTP_404_NOT_FOUND)
+
+        reserva.delete()
+        return Response(
+            {"mensagem": "Reserva cancelada com sucesso!"},
+            status=status.HTTP_200_OK
+        )
         
 class MesaViewSet(viewsets.ModelViewSet):
     queryset = Mesa.objects.select_related("garcom", "mesa_agrupada")

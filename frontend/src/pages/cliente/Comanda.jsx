@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { mensagemDoErro, requisicaoApi } from "../../utils/api";
 import formatarPreco from "../../utils/formatarPreco";
 import { deCentavos, paraCentavos } from "../../utils/valores";
 
 
-export default function Comanda({ itens = [] }) {
+export default function Comanda({ itens = [], erro = "" }) {
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
   const [fechamentoSolicitado, setFechamentoSolicitado] = useState(false);
   const [carregandoFechamento, setCarregandoFechamento] = useState(false);
@@ -28,33 +29,18 @@ export default function Comanda({ itens = [] }) {
         throw new Error("Não foi possível identificar a comanda.");
       }
 
-      const resposta = await fetch("/api/solicitacoes/", {
+      await requisicaoApi("/api/solicitacoes/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           tipo: "FECHAMENTO",
           comanda: Number(idComanda),
         }),
       });
 
-      const dados = await resposta.json();
-
-      if (!resposta.ok) {
-        throw new Error(
-          dados.erro ||
-          dados.detail ||
-          "Não foi possível solicitar o fechamento da conta."
-        );
-      }
-
       setMostrarConfirmacao(false);
       setFechamentoSolicitado(true);
     } catch (erro) {
-      setErroFechamento(
-        erro.message || "Erro ao conectar com o servidor."
-      );
+      setErroFechamento(mensagemDoErro(erro));
     } finally {
       setCarregandoFechamento(false);
     }
@@ -69,6 +55,12 @@ export default function Comanda({ itens = [] }) {
           Confira os itens registrados na sua comanda.
         </p>
       </div>
+
+      {erro && (
+        <p role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+          {erro}
+        </p>
+      )}
 
       <div className="space-y-3">
         {itens.length > 0 ? (

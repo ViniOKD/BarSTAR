@@ -5,7 +5,7 @@ from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .models import Comanda, Funcionario, Gerente, Mesa, Reserva, Solicitacao
+from .models import Categoria, Comanda, Cozinha, Funcionario, Gerente, Item, ItensPedido, Mesa, Pedido, Reserva, Solicitacao
 
 
 class MigrationTests(SimpleTestCase):
@@ -331,3 +331,62 @@ class ComportamentoDasViewsTests(TestCase):
 
         self.assertEqual(len(resposta.data), 1)
         self.assertEqual(len(vazia.data), 0)
+
+
+class TratamentoDeErrosTests(TestCase):
+    def setUp(self):
+        self.gerente = Gerente.objects.create_user(
+            cpf="11111111111", password="senha", nome="Gerente", tel="44999990000", salario=0,
+        )
+        garcom = Funcionario.objects.create(
+            nome="Garçom", tel="44999990001", cpf="22222222222", salario=0,
+            cargo=Funcionario.Cargo.GARCOM, gerente=self.gerente,
+        )
+        self.mesa = Mesa.objects.create(numero_mesa=70, capacidade=4, gerente=self.gerente, garcom=garcom)
+        self.gerencia = APIClient()
+        self.gerencia.force_authenticate(self.gerente)
+
+    def test_cancelar_reserva(self):
+        reserva = Reserva.objects.create(
+            mesa=self.mesa, cliente_nome="Cliente",
+            data_reserva=timezone.localdate() + dt.timedelta(days=1), hora_reserva="20:00",
+        )
+
+        resposta = self.gerencia.delete(f"/api/reservas/{reserva.id}/")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertFalse(Reserva.objects.filter(pk=reserva.id).exists())
+
+    def test_cancelar_reserva_inexistente(self):
+        resposta = self.gerencia.delete("/api/reservas/999999/")
+
+        self.assertEqual(resposta.status_code, 404)
+        self.assertEqual(resposta.data["erro"], "Reserva não encontrada ou já removida.")
+
+    def criar_item(self):
+        categoria = Categoria.objects.create(nome="Categoria de teste", tipo_categoria=Categoria.TipoCategoria.PRATO)
+        item = Item.objects.create(
+            nome="Item de teste", preco_unitario="10.00", peso=300, tempo_preparo_minutos=15, categoria=categoria, gerente=self.gerente,
+        )
+        return categoria, item
+
+    def test_categoria_com_produtos_nao_muda_de_tipo(self):
+        categoria, _ = self.criar_item()
+
+        resposta = self.gerencia.patch(
+            f"/api/categorias/{categoria.id}/", {"tipo_categoria": Categoria.TipoCategoria.BEBIDA}, format="json",
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("existem produtos vinculados", resposta.data["detail"])
+
+    def test_produto_com_pedido_nao_e_excluido(self):
+        _, item = self.criar_item()
+        comanda = Comanda.objects.create(cpf="52998224725", telefone="44999990002", mesa=self.mesa)
+        pedido = Pedido.objects.create(comanda=comanda, cozinha=Cozinha.objects.first())
+        ItensPedido.objects.create(item=item, pedido=pedido, preco="10.00", quantidade=1)
+
+        resposta = self.gerencia.delete(f"/api/itens/{item.id}/")
+
+        self.assertEqual(resposta.status_code, 409)
+        self.assertIn("vínculos que impedem sua exclusão", resposta.data["detail"])
