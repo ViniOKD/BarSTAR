@@ -392,20 +392,3 @@ class PagamentoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('O preço deve ser maior que zero.')
         return value
 
-        
-class ComandaConsultaSerializer(serializers.ModelSerializer):
-    mesa = serializers.IntegerField(source="mesa_id", read_only=True)
-    pedidos = PedidoComandaSerializer(many=True, read_only=True)
-    total = serializers.SerializerMethodField()
-    class Meta:
-        model = Comanda
-        fields = ["id", "mesa", "pedidos", "total"]
-
-    def get_total(self, obj):
-        total = Decimal("0.00")
-
-        for pedido in obj.pedidos.all():
-            for item_pedido in pedido.itens_pedido.all():
-                total += item_pedido.preco * item_pedido.quantidade
-
-        return f"{total:.2f}"
