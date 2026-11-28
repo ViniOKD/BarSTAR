@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { cargos, dadosDoFuncionario, descricaoDoCargo, validarFuncionario } from "../utils/funcionarios.js";
+import { cargos, dadosDoFuncionario, descricaoDoCargo, validarFuncionario } from "../../utils/funcionarios.js";
 
 const campoClasse = "mt-1 w-full rounded-md border border-gray-400 bg-white p-2 text-header focus:outline-2 focus:outline-hover disabled:opacity-60";
 

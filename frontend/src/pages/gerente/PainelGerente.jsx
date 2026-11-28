@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { AvisoErro } from "../components/gerente/Avisos.jsx";
-import RelatorioVendas from "../components/gerente/RelatorioVendas.jsx";
-import { useDadosApi } from "../hooks/useDadosApi.js";
-import formatarPreco from "../utils/formatarPreco.js";
-import periodoInicial from "../utils/periodoInicial.js";
+import { AvisoErro } from "../../components/comum/Avisos.jsx";
+import RelatorioVendas from "../../components/gerente/RelatorioVendas.jsx";
+import { useDadosApi } from "../../hooks/useDadosApi.js";
+import formatarPreco from "../../utils/formatarPreco.js";
+import periodoInicial from "../../utils/periodoInicial.js";
 
 function Secao({ titulo, descricao, children }) {
   return (

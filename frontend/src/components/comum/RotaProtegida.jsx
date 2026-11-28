@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { requisicaoApi } from "../utils/api.js";
+import { requisicaoApi } from "../../utils/api.js";
 
 // Só mostra a tela depois de confirmar no servidor que há alguém logado
 // com um dos cargos permitidos. Caso contrário, leva para a tela de login.

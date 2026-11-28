@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import logo from "../assets/logo.svg";
-import { requisicaoApi } from "../utils/api";
+import logo from "../../assets/logo.svg";
+import { requisicaoApi } from "../../utils/api";
 
 const linksPrincipais = [
   { nome: "Painel de Preparo", href: "/cozinha" },

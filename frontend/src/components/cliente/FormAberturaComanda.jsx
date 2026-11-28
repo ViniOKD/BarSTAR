@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import logo from "../assets/logo.svg";
+import logo from "../../assets/logo.svg";
 
 export function FormAberturaComanda({ aoSucesso }) {
   const [cpf, setCpf] = useState('');

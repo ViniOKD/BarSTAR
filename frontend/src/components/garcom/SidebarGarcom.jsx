@@ -1,6 +1,6 @@
 import { useState } from "react";
-import logo from "../assets/logo.svg";
-import pessoa from "../assets/pessoa.png";
+import logo from "../../assets/logo.svg";
+import pessoa from "../../assets/pessoa.png";
 
 const linksPrincipais = [
   { nome: "Painel de Atendimento", href: "/garcom" },

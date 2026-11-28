@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import FormPromocao from "../../components/FormPromocao.jsx";
+import FormPromocao from "../../components/gerente/FormPromocao.jsx";
 import { requisicaoApi } from "../../utils/api.js";
 import { formatarDataPromocao } from "../../utils/promocoes.js";
 

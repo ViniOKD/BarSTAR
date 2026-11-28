@@ -1,34 +1,34 @@
 import { useEffect, useRef, useState } from "react";
-import { FormAberturaComanda } from "./components/FormAberturaComanda";
-import Sidebar from "./components/Sidebar";
-import Bebidas from "./pages/Bebidas";
-import Comidas from "./pages/Comidas";
-import Comanda from "./pages/Comanda";
-import PromocoesCliente from "./pages/PromocoesCliente";
+import { FormAberturaComanda } from "./components/cliente/FormAberturaComanda";
+import Sidebar from "./components/cliente/Sidebar";
+import Bebidas from "./pages/cliente/Bebidas";
+import Comidas from "./pages/cliente/Comidas";
+import Comanda from "./pages/cliente/Comanda";
+import PromocoesCliente from "./pages/cliente/PromocoesCliente";
 import Configuracoes from "./pages/Configuracoes";
-import PainelGerente from "./pages/PainelGerente";
-import { SidebarGerente } from "./components/SidebarGerente";
-import RotaProtegida from "./components/RotaProtegida";
+import PainelGerente from "./pages/gerente/PainelGerente";
+import { SidebarGerente } from "./components/gerente/SidebarGerente";
+import RotaProtegida from "./components/comum/RotaProtegida";
 import PainelCozinha from "./pages/cozinha/PainelCozinha";
 import DisponibilidadeCozinha from "./pages/cozinha/DisponibilidadeCozinha";
 import PainelBar from "./pages/bar/PainelBar";
 import DisponibilidadeBar from "./pages/bar/DisponibilidadeBar";
-import { SidebarCozinha } from "./components/SidebarCozinha";
-import { SidebarBar } from "./components/SidebarBar";
+import { SidebarCozinha } from "./components/preparo/SidebarCozinha";
+import { SidebarBar } from "./components/preparo/SidebarBar";
 import Usuarios from "./pages/gerente/Usuarios";
 import Mesas from "./pages/gerente/Mesas";
 import Categorias from "./pages/gerente/Categorias";
 import Produtos from "./pages/gerente/Produtos";
 import Promocoes from "./pages/gerente/Promocoes";
 import Historico from "./pages/gerente/Historico";
-import Pedidos from "./components/Pedidos";
+import Pedidos from "./components/cliente/Pedidos";
 import { requisicaoApi } from "./utils/api";
 import { atualizarPrecosCarrinho, aplicarPrecosAlterados, dadosEnvioPedido } from "./utils/carrinho";
 import PainelGarcom from "./pages/garcom/PainelGarcom";
 import SolicitacoesGarcom from "./pages/garcom/SolicitacoesGarcom";
 import PedidosGarcom from "./pages/garcom/PedidosGarcom";
-import { SidebarGarcom } from "./components/SidebarGarcom";
-import ModalProduto from "./components/ModalProduto";
+import { SidebarGarcom } from "./components/garcom/SidebarGarcom";
+import ModalProduto from "./components/cliente/ModalProduto";
 
 const telasGerente = {
   "/gerente": <PainelGerente />,

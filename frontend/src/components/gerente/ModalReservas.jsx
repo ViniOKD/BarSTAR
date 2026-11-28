@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { mensagemDoErro, requisicaoApi } from "../../utils/api.js";
 import { numeroDaMesa, reservaVazia } from "../../utils/mesas.js";
-import { ErroFormulario } from "./Avisos.jsx";
-import Modal from "./Modal.jsx";
-import ModalConfirmacao from "./ModalConfirmacao.jsx";
+import { ErroFormulario } from "../comum/Avisos.jsx";
+import Modal from "../comum/Modal.jsx";
+import ModalConfirmacao from "../comum/ModalConfirmacao.jsx";
 
 const campoClasse = "w-full border border-gray-300 p-2.5 rounded-md focus:outline-none focus:border-hover bg-white text-header text-sm";
 const rotuloClasse = "block text-xs font-bold mb-1 text-header";

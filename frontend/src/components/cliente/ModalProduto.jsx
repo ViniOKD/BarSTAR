@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import formatarPreco from "../utils/formatarPreco";
-import { deCentavos, paraCentavos } from "../utils/valores";
+import formatarPreco from "../../utils/formatarPreco";
+import { deCentavos, paraCentavos } from "../../utils/valores";
 
 const estiloFoco = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hover";
 const estiloCampo = `rounded-lg border border-hover bg-fundo ${estiloFoco}`;

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { mensagemDoErro, requisicaoApi } from "../../utils/api.js";
-import { ErroFormulario } from "./Avisos.jsx";
-import Modal from "./Modal.jsx";
+import { ErroFormulario } from "../comum/Avisos.jsx";
+import Modal from "../comum/Modal.jsx";
 
 const campoClasse = "w-full border border-gray-300 p-3 rounded-md focus:outline-none focus:border-hover bg-white text-header";
 const rotuloClasse = "block text-sm font-bold mb-2 text-header";

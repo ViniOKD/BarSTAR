@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { AvisoErro, AvisoSucesso } from "../../components/gerente/Avisos.jsx";
+import { AvisoErro, AvisoSucesso } from "../../components/comum/Avisos.jsx";
 import FormMesa from "../../components/gerente/FormMesa.jsx";
 import { CalendarIcon, LinkIcon, PencilIcon, TrashIcon, XCircleIcon } from "@heroicons/react/24/outline";
-import ModalConfirmacao from "../../components/gerente/ModalConfirmacao.jsx";
+import ModalConfirmacao from "../../components/comum/ModalConfirmacao.jsx";
 import ModalJuntarMesas from "../../components/gerente/ModalJuntarMesas.jsx";
 import ModalReservas from "../../components/gerente/ModalReservas.jsx";
 import { useDadosApi } from "../../hooks/useDadosApi.js";

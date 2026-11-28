@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import FormFuncionario from "../../components/FormFuncionario.jsx";
+import FormFuncionario from "../../components/gerente/FormFuncionario.jsx";
 import { requisicaoApi } from "../../utils/api.js";
 import { cargos, formatarCpf, formatarTelefone } from "../../utils/funcionarios.js";
 

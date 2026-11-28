@@ -1,6 +1,6 @@
 import { useState } from "react";
-import formatarPreco from "../utils/formatarPreco";
-import { deCentavos, paraCentavos } from "../utils/valores";
+import formatarPreco from "../../utils/formatarPreco";
+import { deCentavos, paraCentavos } from "../../utils/valores";
 
 
 export default function Comanda({ itens = [] }) {

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { mensagemDoErro, requisicaoApi } from "../../utils/api.js";
 import { statusDaMesa } from "../../utils/mesas.js";
-import { ErroFormulario } from "./Avisos.jsx";
-import Modal from "./Modal.jsx";
+import { ErroFormulario } from "../comum/Avisos.jsx";
+import Modal from "../comum/Modal.jsx";
 
 // Escolhe as mesas livres que serão agrupadas à mesa principal.
 export default function ModalJuntarMesas({ mesaPrincipal, mesas, onFechar, onSucesso }) {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import formatarPreco from "../utils/formatarPreco";
-import { deCentavos, paraCentavos } from "../utils/valores";
-import { requisicaoApi } from "../utils/api";
+import formatarPreco from "../../utils/formatarPreco";
+import { deCentavos, paraCentavos } from "../../utils/valores";
+import { requisicaoApi } from "../../utils/api";
 
 export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, onEditarItem, onSelecionarSugestao, onEnviar,
   enviando = false, atualizando = false, erro = "", aviso = "", onAtualizar }) {

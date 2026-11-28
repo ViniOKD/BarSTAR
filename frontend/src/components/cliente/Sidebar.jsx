@@ -1,5 +1,5 @@
 import { useState } from "react";
-import logo from "../assets/logo.svg";
+import logo from "../../assets/logo.svg";
 
 const linksPrincipais = [
   { nome: "Início", href: "/" },

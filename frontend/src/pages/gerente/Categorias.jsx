@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { AvisoErro, AvisoSucesso } from "../../components/gerente/Avisos.jsx";
+import { AvisoErro, AvisoSucesso } from "../../components/comum/Avisos.jsx";
 import FormCategoria from "../../components/gerente/FormCategoria.jsx";
 import { PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
-import ModalConfirmacao from "../../components/gerente/ModalConfirmacao.jsx";
+import ModalConfirmacao from "../../components/comum/ModalConfirmacao.jsx";
 import { useDadosApi } from "../../hooks/useDadosApi.js";
 import { useMensagemTemporaria } from "../../hooks/useMensagemTemporaria.js";
 import { mensagemDoErro, requisicaoApi } from "../../utils/api.js";

@@ -1,17 +1,9 @@
 import { useState } from "react";
-import logo from "../assets/logo.svg";
-import { requisicaoApi } from "../utils/api.js";
-
-const url = "/gerente";
+import logo from "../../assets/logo.svg";
 
 const linksPrincipais = [
-  { nome: "Dashboard", href: `${url}` },
-  { nome: "Usuários", href: `${url}/usuarios` },
-  { nome: "Mesas", href: `${url}/mesas` },
-  { nome: "Categorias", href: `${url}/categorias` },
-  { nome: "Produtos", href: `${url}/produtos` },
-  { nome: "Promoções", href: `${url}/promocoes` },
-  { nome: "Histórico", href: `${url}/historico` },
+  { nome: "Painel de Preparo", href: "/bar" },
+  { nome: "Disponibilidade", href: "/bar/disponibilidade" },
 ];
 
 const estiloLink =
@@ -19,7 +11,9 @@ const estiloLink =
 
 function obterEstiloLink(ativo) {
   return `${estiloLink} ${
-    ativo ? "bg-hover text-header" : "text-white hover:bg-white/10"
+    ativo
+      ? "bg-hover text-header"
+      : "text-white hover:bg-white/10"
   }`;
 }
 
@@ -30,8 +24,19 @@ function BotaoSair() {
   async function sair() {
     setSaindo(true);
     setErro("");
+
     try {
-      await requisicaoApi("/api/logout/", { method: "POST" });
+      const csrfToken = document.cookie
+        .split("; ")
+        .find((cookie) => cookie.startsWith("csrftoken="))
+        ?.slice("csrftoken=".length);
+
+      const resposta = await fetch("/api/logout/", {
+        method: "POST",
+        headers: { "X-CSRFToken": csrfToken ?? "" },
+      });
+
+      if (!resposta.ok) throw new Error("Falha ao sair");
 
       window.location.replace("/configuracoes");
     } catch {
@@ -41,7 +46,7 @@ function BotaoSair() {
   }
 
   return (
-    <div className="mt-6 shrink-0 border-t border-white/20 pt-4">
+    <div className="mt-2 shrink-0">
       <button
         type="button"
         onClick={sair}
@@ -50,29 +55,32 @@ function BotaoSair() {
       >
         {saindo ? "Saindo..." : "Sair"}
       </button>
-      {erro && <p role="alert" className="mt-2 text-sm text-white">{erro}</p>}
+
+      {erro && (
+        <p role="alert" className="mt-2 text-sm text-white">
+          {erro}
+        </p>
+      )}
     </div>
   );
 }
 
-export function SidebarGerente({ paginaAtual = "/gerente", onNavegar }) {
+export function SidebarBar({ paginaAtual = "/bar", onNavegar }) {
   function navegar(evento, destino) {
     if (!onNavegar) return;
-
     evento.preventDefault();
     onNavegar(destino);
   }
 
   return (
     <aside
-      aria-label="Barra lateral do gerente"
+      aria-label="Barra lateral do bar"
       className="fixed inset-y-0 left-0 flex w-64 flex-col bg-header px-5 py-6 font-header text-white"
     >
-      {/* Identificação */}
       <div className="mb-6 shrink-0">
         <a
-          href="/gerente"
-          onClick={(evento) => navegar(evento, "/gerente")}
+          href="/bar"
+          onClick={(evento) => navegar(evento, "/bar")}
           className="inline-flex rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hover"
         >
           <img
@@ -84,7 +92,7 @@ export function SidebarGerente({ paginaAtual = "/gerente", onNavegar }) {
       </div>
 
       <nav
-        aria-label="Navegação do gerente"
+        aria-label="Navegação do bar"
         className="min-h-0 flex-1 overflow-y-auto"
       >
         <div className="flex flex-col gap-2">
@@ -99,12 +107,15 @@ export function SidebarGerente({ paginaAtual = "/gerente", onNavegar }) {
                 aria-current={ativo ? "page" : undefined}
                 className={obterEstiloLink(ativo)}
               >
-                {link.nome}
+                <span>{link.nome}</span>
               </a>
             );
           })}
         </div>
       </nav>
+
+      <div className="mt-6 shrink-0 border-t border-white/20 pt-4" />
+
       <BotaoSair />
     </aside>
   );
