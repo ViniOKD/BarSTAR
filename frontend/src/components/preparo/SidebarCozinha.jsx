@@ -1,13 +1,14 @@
-import { useState } from "react";
-import logo from "../assets/logo.svg";
+import { useEffect, useState } from "react";
+import logo from "../../assets/logo.svg";
+import { requisicaoApi } from "../../utils/api";
 
 const linksPrincipais = [
-  { nome: "Painel de Preparo", href: "/bar" },
-  { nome: "Disponibilidade", href: "/bar/disponibilidade" },
+  { nome: "Painel de Preparo", href: "/cozinha" },
+  { nome: "Disponibilidade", href: "/cozinha/disponibilidade" },
 ];
 
 const estiloLink =
-  "flex min-h-12 w-full items-center rounded-lg px-4 py-3 text-left font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hover";
+  "flex min-h-12 w-full items-center justify-between gap-3 rounded-lg px-4 py-3 text-left font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hover";
 
 function obterEstiloLink(ativo) {
   return `${estiloLink} ${
@@ -38,7 +39,7 @@ function BotaoSair() {
 
       if (!resposta.ok) throw new Error("Falha ao sair");
 
-      window.location.replace("/configuracoes");
+      window.location.replace("/login");
     } catch {
       setErro("Não foi possível sair. Tente novamente.");
       setSaindo(false);
@@ -65,7 +66,52 @@ function BotaoSair() {
   );
 }
 
-export function SidebarBar({ paginaAtual = "/bar", onNavegar }) {
+export function SidebarCozinha({
+  paginaAtual = "/cozinha",
+  onNavegar,
+}) {
+  const [quantidadeEmPreparo, setQuantidadeEmPreparo] = useState(0);
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function buscarQuantidade() {
+      try {
+        const resposta = await requisicaoApi("/api/pedidos/", {
+          cache: "no-store",
+        });
+
+        const lista = Array.isArray(resposta)
+          ? resposta
+          : resposta.results ?? [];
+
+        const quantidade = lista.reduce(
+          (total, pedido) =>
+            total +
+            (pedido.itens_pedido ?? []).filter(
+              (item) => item.status === "EM_PREPARO"
+            ).length,
+          0
+        );
+
+        if (ativo) {
+          setQuantidadeEmPreparo(quantidade);
+        }
+      } catch (erro) {
+        console.error("Erro ao buscar quantidade de itens:", erro);
+      }
+    }
+
+    buscarQuantidade();
+
+    const intervalo = setInterval(buscarQuantidade, 5000);
+
+    return () => {
+      ativo = false;
+      clearInterval(intervalo);
+    };
+  }, []);
+
   function navegar(evento, destino) {
     if (!onNavegar) return;
     evento.preventDefault();
@@ -74,13 +120,13 @@ export function SidebarBar({ paginaAtual = "/bar", onNavegar }) {
 
   return (
     <aside
-      aria-label="Barra lateral do bar"
+      aria-label="Barra lateral da cozinha"
       className="fixed inset-y-0 left-0 flex w-64 flex-col bg-header px-5 py-6 font-header text-white"
     >
       <div className="mb-6 shrink-0">
         <a
-          href="/bar"
-          onClick={(evento) => navegar(evento, "/bar")}
+          href="/cozinha"
+          onClick={(evento) => navegar(evento, "/cozinha")}
           className="inline-flex rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hover"
         >
           <img
@@ -92,7 +138,7 @@ export function SidebarBar({ paginaAtual = "/bar", onNavegar }) {
       </div>
 
       <nav
-        aria-label="Navegação do bar"
+        aria-label="Navegação da cozinha"
         className="min-h-0 flex-1 overflow-y-auto"
       >
         <div className="flex flex-col gap-2">
@@ -108,6 +154,16 @@ export function SidebarBar({ paginaAtual = "/bar", onNavegar }) {
                 className={obterEstiloLink(ativo)}
               >
                 <span>{link.nome}</span>
+
+                {link.href === "/cozinha" &&
+                  quantidadeEmPreparo > 0 && (
+                    <span
+                      aria-label={`${quantidadeEmPreparo} itens aguardando preparo`}
+                      className="flex h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold text-white"
+                    >
+                      {quantidadeEmPreparo}
+                    </span>
+                  )}
               </a>
             );
           })}

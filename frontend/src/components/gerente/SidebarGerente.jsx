@@ -1,6 +1,6 @@
 import { useState } from "react";
-import logo from "../assets/logo.svg";
-import { requisicaoApi } from "../utils/api.js";
+import logo from "../../assets/logo.svg";
+import { requisicaoApi } from "../../utils/api.js";
 
 const url = "/gerente";
 
@@ -33,7 +33,7 @@ function BotaoSair() {
     try {
       await requisicaoApi("/api/logout/", { method: "POST" });
 
-      window.location.replace("/configuracoes");
+      window.location.replace("/login");
     } catch {
       setErro("Não foi possível sair. Tente novamente.");
       setSaindo(false);

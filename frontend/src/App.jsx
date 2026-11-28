@@ -1,34 +1,35 @@
 import { useEffect, useRef, useState } from "react";
-import { FormAberturaComanda } from "./components/FormAberturaComanda";
-import Sidebar from "./components/Sidebar";
-import Bebidas from "./pages/Bebidas";
-import Comidas from "./pages/Comidas";
-import Comanda from "./pages/Comanda";
-import PromocoesCliente from "./pages/PromocoesCliente";
-import Configuracoes from "./pages/Configuracoes";
-import PainelGerente from "./pages/PainelGerente";
-import { SidebarGerente } from "./components/SidebarGerente";
-import RotaProtegida from "./components/RotaProtegida";
+import { FormAberturaComanda } from "./components/cliente/FormAberturaComanda";
+import Sidebar from "./components/cliente/Sidebar";
+import Bebidas from "./pages/cliente/Bebidas";
+import Comidas from "./pages/cliente/Comidas";
+import Comanda from "./pages/cliente/Comanda";
+import PromocoesCliente from "./pages/cliente/PromocoesCliente";
+import Login from "./pages/Login";
+import PainelGerente from "./pages/gerente/PainelGerente";
+import { SidebarGerente } from "./components/gerente/SidebarGerente";
+import RotaProtegida from "./components/comum/RotaProtegida";
 import PainelCozinha from "./pages/cozinha/PainelCozinha";
 import DisponibilidadeCozinha from "./pages/cozinha/DisponibilidadeCozinha";
 import PainelBar from "./pages/bar/PainelBar";
 import DisponibilidadeBar from "./pages/bar/DisponibilidadeBar";
-import { SidebarCozinha } from "./components/SidebarCozinha";
-import { SidebarBar } from "./components/SidebarBar";
+import { SidebarCozinha } from "./components/preparo/SidebarCozinha";
+import { SidebarBar } from "./components/preparo/SidebarBar";
 import Usuarios from "./pages/gerente/Usuarios";
 import Mesas from "./pages/gerente/Mesas";
 import Categorias from "./pages/gerente/Categorias";
 import Produtos from "./pages/gerente/Produtos";
 import Promocoes from "./pages/gerente/Promocoes";
 import Historico from "./pages/gerente/Historico";
-import Pedidos from "./components/Pedidos";
-import { requisicaoApi } from "./utils/api";
+import Pedidos from "./components/cliente/Pedidos";
+import { useMensagemTemporaria } from "./hooks/useMensagemTemporaria";
+import { mensagemDoErro, requisicaoApi } from "./utils/api";
 import { atualizarPrecosCarrinho, aplicarPrecosAlterados, dadosEnvioPedido } from "./utils/carrinho";
 import PainelGarcom from "./pages/garcom/PainelGarcom";
 import SolicitacoesGarcom from "./pages/garcom/SolicitacoesGarcom";
 import PedidosGarcom from "./pages/garcom/PedidosGarcom";
-import { SidebarGarcom } from "./components/SidebarGarcom";
-import ModalProduto from "./components/ModalProduto";
+import { SidebarGarcom } from "./components/garcom/SidebarGarcom";
+import ModalProduto from "./components/cliente/ModalProduto";
 
 const telasGerente = {
   "/gerente": <PainelGerente />,
@@ -69,6 +70,9 @@ export default function App() {
   const [atualizandoPedido, setAtualizandoPedido] = useState(false);
   const [erroPedido, setErroPedido] = useState("");
   const [avisoPedido, setAvisoPedido] = useState("");
+  const [erroComanda, setErroComanda] = useState("");
+  // Resultado do botão "Chamar garçom"; some sozinho depois de alguns segundos.
+  const [avisoAtendimento, setAvisoAtendimento] = useMensagemTemporaria(4000);
   const [solicitacoesPendentes, setSolicitacoesPendentes] = useState([]);
   const [pedidosPendentes, setPedidosPendentes] = useState(0);
   const operacaoPedido = useRef(false);
@@ -185,44 +189,29 @@ export default function App() {
     }
   }
   
-async function chamarGarcom() {
-  try {
-    const idComanda = localStorage.getItem("id_comanda");
+  async function chamarGarcom() {
+    try {
+      const idComanda = localStorage.getItem("id_comanda");
 
-    if (!idComanda) {
-      alert("Não foi possível identificar a comanda.");
-      return;
+      if (!idComanda) {
+        throw new Error("Não foi possível identificar a comanda.");
+      }
+
+      await requisicaoApi("/api/solicitacoes/", {
+        method: "POST",
+        body: JSON.stringify({
+          tipo: "ATENDIMENTO",
+          comanda: Number(idComanda),
+        }),
+      });
+
+      setAvisoAtendimento("Solicitação enviada! Aguarde o garçom.");
+    } catch (erro) {
+      setAvisoAtendimento(mensagemDoErro(erro));
     }
-
-    const resposta = await fetch("/api/solicitacoes/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        tipo: "ATENDIMENTO",
-        comanda: Number(idComanda),
-      }),
-    });
-
-    const dados = await resposta.json();
-
-    if (!resposta.ok) {
-      throw new Error(
-        dados.erro ||
-        dados.detail ||
-        "Não foi possível chamar o garçom."
-      );
-    }
-
-    alert("Solicitação enviada! Aguarde o garçom.");
-  } catch (erro) {
-    alert(erro.message || "Erro ao conectar com o servidor.");
   }
-}
 
-
-  // consulta a API, qunado a tela de comanda é aberta
+  // Consulta a API enquanto a tela da comanda estiver aberta.
   useEffect(() => {
     if (paginaAtual !== "/comanda") return;
 
@@ -235,17 +224,9 @@ async function chamarGarcom() {
           return;
         }
 
-        const resposta = await fetch( 
-          `/api/mesas/${idMesa}/comanda/`
-        );
-
-        const dados = await resposta.json();
-
-        if (!resposta.ok) {
-          throw new Error(
-            dados.erro || "Não foi possível consultar a comanda."
-          );
-        }
+        const dados = await requisicaoApi(`/api/mesas/${idMesa}/comanda/`, {
+          cache: "no-store",
+        });
 
         // Junta os itens de todos os pedidos da comanda.
         const itens = (dados.pedidos ?? []).flatMap((pedido) =>
@@ -257,9 +238,12 @@ async function chamarGarcom() {
         );
 
         setItensComanda(itens);
+        setErroComanda("");
       } catch (erro) {
-        console.error("Erro ao buscar a comanda:", erro);
-        setItensComanda([]);
+        // Sem comanda ativa a lista fica vazia; em falha de conexão mantém os
+        // itens já carregados e avisa, para a comanda não parecer zerada.
+        if (erro.status === 404) setItensComanda([]);
+        setErroComanda(mensagemDoErro(erro));
       }
     };
 
@@ -346,9 +330,9 @@ useEffect(() => {
     );
   }
 
-  // O endereço antigo do login do garçom leva ao login único.
-  if (paginaAtual === "/configuracoes" || paginaAtual === "/login/garcom") {
-    return <Configuracoes />;
+  // "/configuracoes" e "/login/garcom" são endereços antigos do login, mantidos para links salvos.
+  if (["/login", "/configuracoes", "/login/garcom"].includes(paginaAtual)) {
+    return <Login />;
   }
   
   if (Object.hasOwn(telasGerente, paginaAtual)) {
@@ -408,6 +392,9 @@ if (Object.hasOwn(telasBar, paginaAtual)) {
         onChamarGarcom={chamarGarcom}
       />
       <main className="ml-64 flex-1 p-6">
+        {avisoAtendimento && (
+          <p role="status" className="mb-4 rounded-lg border border-hover bg-destaque p-3">{avisoAtendimento}</p>
+        )}
 
         {(paginaAtual === "/cardapio" || paginaAtual === "/promocoes") && (
           <div className="mb-6 flex justify-end">
@@ -486,7 +473,7 @@ if (Object.hasOwn(telasBar, paginaAtual)) {
         )}
 
         {paginaAtual === "/comanda" && (
-          <Comanda itens={itensComanda} />
+          <Comanda itens={itensComanda} erro={erroComanda} />
         )}
 
         {/* Painel lateral de Pedidos */}

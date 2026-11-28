@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { AvisoErro, AvisoSucesso } from "../../components/gerente/Avisos.jsx";
+import { AvisoErro, AvisoSucesso } from "../../components/comum/Avisos.jsx";
 import FormMesa from "../../components/gerente/FormMesa.jsx";
 import { CalendarIcon, LinkIcon, PencilIcon, TrashIcon, XCircleIcon } from "@heroicons/react/24/outline";
-import ModalConfirmacao from "../../components/gerente/ModalConfirmacao.jsx";
+import ModalConfirmacao from "../../components/comum/ModalConfirmacao.jsx";
 import ModalJuntarMesas from "../../components/gerente/ModalJuntarMesas.jsx";
 import ModalReservas from "../../components/gerente/ModalReservas.jsx";
 import { useDadosApi } from "../../hooks/useDadosApi.js";
 import { useMensagemTemporaria } from "../../hooks/useMensagemTemporaria.js";
 import { mensagemDoErro, requisicaoApi } from "../../utils/api.js";
-import { estiloDoStatus, statusDaMesa } from "../../utils/mesas.js";
+import { estiloDoStatus, proximoNumeroDeMesa, statusDaMesa } from "../../utils/mesas.js";
 
 const filtroClasse = "w-full border border-gray-300 p-2.5 rounded-md focus:outline-none focus:border-hover text-gray-700 bg-white";
 const botaoAcao = "text-gray-400 transition-colors cursor-pointer";
@@ -19,12 +19,12 @@ function LinhaMesa({ mesa, onAbrir }) {
   return (
     <tr className="border-b border-gray-100 hover:bg-[#FFF9E6] transition-colors">
       <td className="p-4 font-bold text-header">
-        {mesa.id}
+        {mesa.numero_mesa}
         {mesa.is_principal && (
           <span className="ml-2 text-xs bg-yellow-500 text-white font-bold px-2 py-0.5 rounded-full">Principal</span>
         )}
         {mesa.mesa_agrupada && (
-          <span className="ml-2 text-xs text-yellow-700 font-normal">(Mesa Agrupada à {mesa.mesa_agrupada})</span>
+          <span className="ml-2 text-xs text-yellow-700 font-normal">(Mesa Agrupada à {mesa.mesa_agrupada_numero})</span>
         )}
       </td>
       <td className="p-4 text-gray-600">
@@ -91,7 +91,7 @@ export default function Mesas() {
     setErroAcao("");
 
     if (tipo === "reservas" && mesa.status === "INATIVA") {
-      setErroAcao(`A Mesa ${mesa.id} está INATIVA. Ative a mesa antes de efetuar reservas.`);
+      setErroAcao(`A Mesa ${mesa.numero_mesa} está INATIVA. Ative a mesa antes de efetuar reservas.`);
       return;
     }
 
@@ -118,7 +118,7 @@ export default function Mesas() {
   async function separar() {
     try {
       await requisicaoApi(`/api/mesas/${mesaDaJanela.id}/separar/`, { method: "POST" });
-      aoConcluir(`Mesas desagrupadas da Mesa ${mesaDaJanela.id} com sucesso!`);
+      aoConcluir(`Mesas desagrupadas da Mesa ${mesaDaJanela.numero_mesa} com sucesso!`);
     } catch (falha) {
       setErroAcao(mensagemDoErro(falha));
     }
@@ -214,6 +214,7 @@ export default function Mesas() {
       {tipoDaJanela === "formulario" && (
         <FormMesa
           mesa={mesaDaJanela}
+          numeroSugerido={proximoNumeroDeMesa(mesas)}
           garcons={garcons}
           onFechar={fechar}
           onSucesso={aoConcluir}
@@ -231,13 +232,13 @@ export default function Mesas() {
 
       {tipoDaJanela === "separar" && mesaDaJanela && (
         <ModalConfirmacao titulo="Separar Mesas?" erro={erroAcao} textoConfirmar="Sim, Separar" onConfirmar={separar} onCancelar={fechar}>
-          Tem certeza que deseja desagrupar todas as mesas vinculadas à <strong>Mesa {mesaDaJanela.id}</strong>?
+          Tem certeza que deseja desagrupar todas as mesas vinculadas à <strong>Mesa {mesaDaJanela.numero_mesa}</strong>?
         </ModalConfirmacao>
       )}
 
       {tipoDaJanela === "excluir" && mesaDaJanela && (
         <ModalConfirmacao titulo="Remover Mesa?" erro={erroAcao} textoConfirmar="Sim, Remover" onConfirmar={excluir} onCancelar={fechar}>
-          Tem certeza que deseja remover a <strong>Mesa {mesaDaJanela.id}</strong>?
+          Tem certeza que deseja remover a <strong>Mesa {mesaDaJanela.numero_mesa}</strong>?
         </ModalConfirmacao>
       )}
     </div>

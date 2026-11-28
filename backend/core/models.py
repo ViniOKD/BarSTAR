@@ -111,6 +111,8 @@ class Mesa(models.Model):
         AGRUPADA = 'AGRUPADA', 'Agrupada'
 
     id = models.BigAutoField(primary_key=True)  # id_mesa
+    # Número exibido nas telas e escolhido pelo gerente; o id continua interno.
+    numero_mesa = models.PositiveIntegerField(unique=True)
     capacidade = models.PositiveIntegerField()
     status = models.CharField(
         max_length=15,
@@ -140,14 +142,14 @@ class Mesa(models.Model):
 
     class Meta:
         db_table = 'mesa'
-        ordering = ['id']
+        ordering = ['numero_mesa']
         indexes = [
             models.Index(fields=['gerente', 'status']),
             models.Index(fields=['garcom', 'status']),
         ]
 
     def __str__(self):
-        return f'Mesa {self.id} ({self.capacidade} lugares - {self.get_status_display()})'
+        return f'Mesa {self.numero_mesa} ({self.capacidade} lugares - {self.get_status_display()})'
 
     @property
     def capacidade_total(self):

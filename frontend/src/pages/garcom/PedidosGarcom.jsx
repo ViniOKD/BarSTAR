@@ -233,7 +233,7 @@ export default function PedidosGarcom() {
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-header text-lg font-semibold text-header">
-                    Mesa {pedido.mesa?.id ?? "—"}
+                    Mesa {pedido.mesa?.numero_mesa ?? "—"}
                   </h2>
 
                   <p className="mt-1 font-extralight text-header">

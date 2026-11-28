@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import FormPromocao from "../../components/FormPromocao.jsx";
+import FormPromocao from "../../components/gerente/FormPromocao.jsx";
 import { requisicaoApi } from "../../utils/api.js";
 import { formatarDataPromocao } from "../../utils/promocoes.js";
 
@@ -20,7 +20,7 @@ function ConfirmarRemocao({ promocao, removendo, erro, onCancelar, onConfirmar }
     <p id="descricao-remocao">Remover “{promocao.nome}” encerra sua aplicação nas próximas vendas. O histórico das vendas permanece preservado.</p>
     {erro && <div role="alert" className="mt-4 rounded-md bg-red-100 p-3 text-red-800">
       <p>{erro.message}</p>
-      {(erro.status === 401 || erro.status === 403) && <a href="/configuracoes" className="underline">Acessar login do gerente</a>}
+      {(erro.status === 401 || erro.status === 403) && <a href="/login" className="underline">Acessar login do gerente</a>}
     </div>}
     <div className="mt-5 flex flex-wrap justify-end gap-3" aria-busy={removendo}>
       <button type="button" autoFocus onClick={onCancelar} disabled={removendo} className="rounded-md border border-gray-400 bg-white px-4 py-2 font-semibold disabled:opacity-60">Cancelar</button>
@@ -116,7 +116,7 @@ export default function Promocoes() {
       <p>{erroLista.message}</p>
       <div className="mt-3 flex flex-wrap gap-4">
         <button type="button" onClick={() => { setCarregando(true); setErroLista(null); carregar(); }} className="rounded-md border border-red-700 px-3 py-2 font-semibold">Tentar novamente</button>
-        {(erroLista.status === 401 || erroLista.status === 403) && <a href="/configuracoes" className="self-center underline">Acessar login do gerente</a>}
+        {(erroLista.status === 401 || erroLista.status === 403) && <a href="/login" className="self-center underline">Acessar login do gerente</a>}
       </div>
     </div> : !promocoes.length ? <p className="rounded-xl border border-gray-200 bg-white p-6">Nenhuma promoção cadastrada.</p> : <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
       <table className="w-full min-w-[650px] text-left text-sm">

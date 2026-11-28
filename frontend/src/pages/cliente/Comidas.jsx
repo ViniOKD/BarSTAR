@@ -1,4 +1,4 @@
-import CardapioProdutos from "../components/CardapioProdutos";
+import CardapioProdutos from "../../components/cliente/CardapioProdutos";
 
 export default function Comidas({
   onAdicionarItem,
@@ -8,8 +8,8 @@ export default function Comidas({
 }) {
   return (
     <CardapioProdutos
-      tipoCategoria="BEBIDA"
-      nomePagina="bebidas"
+      tipoCategoria="PRATO"
+      nomePagina="comidas"
       onAdicionarItem={onAdicionarItem}
       itemEmEdicao={itemEmEdicao}
       onAtualizarItem={onAtualizarItem}

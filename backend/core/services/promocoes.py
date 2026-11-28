@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework.exceptions import APIException, ValidationError
 
 from core.models import Item, ItensPromocao, Promocao
-from .dar_preco import calcular_preco_final
+from .precos import calcular_preco_final
 
 
 class ConflitoPromocao(APIException):

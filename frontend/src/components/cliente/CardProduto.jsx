@@ -1,5 +1,5 @@
-import formatarPreco from "../utils/formatarPreco";
-import { paraCentavos } from "../utils/valores";
+import formatarPreco from "../../utils/formatarPreco";
+import { paraCentavos } from "../../utils/valores";
 
 export default function CardProduto({ produto, onClick }) {
   const {

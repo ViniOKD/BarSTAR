@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import ChaveDisponibilidade from "./ChaveDisponibilidade.jsx";
-import { mensagemDoErro, requisicaoApi } from "../utils/api.js";
-import { IMAGEM_PADRAO, alterarDisponibilidade } from "../utils/produtos.js";
+import ChaveDisponibilidade from "../comum/ChaveDisponibilidade.jsx";
+import { mensagemDoErro, requisicaoApi } from "../../utils/api.js";
+import { IMAGEM_PADRAO, alterarDisponibilidade } from "../../utils/produtos.js";
 
 const intervaloAtualizacao = 5000;
 

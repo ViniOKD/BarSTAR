@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { AvisoErro } from "../../components/gerente/Avisos.jsx";
+import { AvisoErro } from "../../components/comum/Avisos.jsx";
 import { EyeIcon } from "@heroicons/react/24/outline";
-import Modal from "../../components/gerente/Modal.jsx";
+import Modal from "../../components/comum/Modal.jsx";
 import { useDadosApi } from "../../hooks/useDadosApi.js";
 import formatarPreco from "../../utils/formatarPreco.js";
 

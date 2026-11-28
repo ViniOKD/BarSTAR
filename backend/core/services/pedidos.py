@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework.exceptions import APIException, ValidationError
 
 from core.models import Categoria, Comanda, Cozinha, Funcionario, ItensPedido, ItensPromocao, Pedido, Promocao
-from .dar_preco import obter_precos_atuais
+from .precos import obter_precos_atuais
 from .promocoes import bloquear_itens
 
 

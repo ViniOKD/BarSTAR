@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AvisoErro } from "./Avisos.jsx";
+import { AvisoErro } from "../comum/Avisos.jsx";
 import { useDadosApi } from "../../hooks/useDadosApi.js";
 import formatarPreco from "../../utils/formatarPreco.js";
 

@@ -91,12 +91,12 @@ def validar_mesa_para_juntar(mesa):
     status = status_atual(mesa)
     if status != Mesa.Status.LIVRE:
         raise ValidationError({
-            "erro": f"A mesa {mesa.id} não pode ser agrupada pois está com status {status}.",
+            "erro": f"A mesa {mesa.numero_mesa} não pode ser agrupada pois está com status {status}.",
         })
 
     if mesa.mesas_agrupadas.exists():
         raise ValidationError({
-            "erro": f"A mesa {mesa.id} já é a principal de outro grupo. Separe-a antes de agrupar.",
+            "erro": f"A mesa {mesa.numero_mesa} já é a principal de outro grupo. Separe-a antes de agrupar.",
         })
 
 
@@ -106,7 +106,7 @@ def juntar_mesas(mesa_principal, mesas_ids):
 
     if mesa_principal.status in (Mesa.Status.INATIVA, Mesa.Status.AGRUPADA):
         raise ValidationError({
-            "erro": f"A mesa {mesa_principal.id} não pode ser a principal pois está com status {mesa_principal.status}.",
+            "erro": f"A mesa {mesa_principal.numero_mesa} não pode ser a principal pois está com status {mesa_principal.status}.",
         })
 
     # Bloqueia as mesas para que outra requisição não as agrupe ao mesmo tempo.
@@ -121,3 +121,45 @@ def juntar_mesas(mesa_principal, mesas_ids):
         mesa_agrupada=mesa_principal,
         status=Mesa.Status.AGRUPADA,
     )
+
+
+@transaction.atomic
+def separar_mesas(mesa_principal):
+    # Libera as mesas filhas, tirando o vínculo e voltando para LIVRE.
+    mesas_filhas = mesa_principal.mesas_agrupadas.select_for_update()
+    if not mesas_filhas.exists():
+        raise ValidationError({"erro": "Esta mesa não possui outras mesas agrupadas a ela."})
+
+    mesas_filhas.update(mesa_agrupada=None, status=Mesa.Status.LIVRE)
+
+
+def validar_exclusao(mesa):
+    if tem_comanda_ativa(mesa):
+        raise ValidationError({
+            "erro": "Não é possível excluir esta mesa pois ela possui uma comanda ativa em andamento.",
+        })
+
+
+def validar_alteracao(mesa, novo_status):
+    # Inativar a mesa com cliente sentado deixaria a comanda sem mesa utilizável.
+    if novo_status == Mesa.Status.INATIVA and tem_comanda_ativa(mesa):
+        raise ValidationError({
+            "erro": "Não é possível inativar esta mesa pois ela possui uma comanda ativa.",
+        })
+
+
+def validar_reserva(mesa, data_reserva):
+    # Regras da mesa; os dados da reserva são validados pelo ReservaSerializer.
+    if mesa.status == Mesa.Status.INATIVA:
+        raise ValidationError({
+            "erro": f"Não é possível reservar. A mesa está com status {mesa.status}.",
+        })
+
+    # localdate usa o fuso do bar; now().date() usaria UTC e viraria o dia às 21h.
+    hoje = timezone.localdate().isoformat()
+    agrupada = mesa.status == Mesa.Status.AGRUPADA or mesa.mesa_agrupada is not None
+    if agrupada and data_reserva == hoje:
+        principal = mesa.mesa_agrupada.numero_mesa if mesa.mesa_agrupada else "-"
+        raise ValidationError({
+            "erro": f"A Mesa #{mesa.numero_mesa} está agrupada à Mesa #{principal}. Faça a reserva diretamente na mesa principal.",
+        })

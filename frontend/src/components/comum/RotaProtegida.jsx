@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { requisicaoApi } from "../utils/api.js";
+import { requisicaoApi } from "../../utils/api.js";
 
 // Só mostra a tela depois de confirmar no servidor que há alguém logado
 // com um dos cargos permitidos. Caso contrário, leva para a tela de login.
@@ -13,12 +13,12 @@ export default function RotaProtegida({ cargos, children }) {
         if (cargos.includes(dados.usuario.cargo)) {
           setLiberado(true);
         } else {
-          window.location.replace("/configuracoes");
+          window.location.replace("/login");
         }
       })
       .catch((falha) => {
         if (falha.status === 401) {
-          window.location.replace("/configuracoes");
+          window.location.replace("/login");
         } else {
           setErro("Não foi possível verificar o login. Recarregue a página.");
         }

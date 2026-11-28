@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import CardProduto from "../components/CardProduto";
-import ModalProduto from "../components/ModalProduto";
+import CardProduto from "../../components/cliente/CardProduto";
+import ModalProduto from "../../components/cliente/ModalProduto";
 
 const intervaloAtualizacao = 5000;
 

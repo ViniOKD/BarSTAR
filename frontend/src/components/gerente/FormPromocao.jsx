@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import formatarPreco from "../utils/formatarPreco.js";
-import { dadosDaPromocao, dataParaCampo, formatarDataPromocao, previaPromocao, validarPromocao } from "../utils/promocoes.js";
+import formatarPreco from "../../utils/formatarPreco.js";
+import { dadosDaPromocao, dataParaCampo, formatarDataPromocao, previaPromocao, validarPromocao } from "../../utils/promocoes.js";
 
 const campoClasse = "mt-1 w-full rounded-md border border-gray-400 bg-white p-2 text-header focus:outline-2 focus:outline-hover disabled:opacity-60";
 
@@ -70,7 +70,7 @@ export default function FormPromocao({ promocao, produtos, salvando, erros, onSa
               {conflito.produto}: “{conflito.promocao}”, de {formatarDataPromocao(conflito.data_inicio)} até {formatarDataPromocao(conflito.data_fim)} (São Paulo).
             </li>)}
           </ul>}
-          {(erros.status === 401 || erros.status === 403) && <a href="/configuracoes" className="mt-2 inline-block underline">Acessar login do gerente</a>}
+          {(erros.status === 401 || erros.status === 403) && <a href="/login" className="mt-2 inline-block underline">Acessar login do gerente</a>}
         </div>}
         {Object.values(errosLocais).some(Boolean) && <p role="alert" className="mb-3 text-red-700">Revise os campos indicados antes de salvar.</p>}
 

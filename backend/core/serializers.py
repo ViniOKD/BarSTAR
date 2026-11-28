@@ -10,7 +10,7 @@ from datetime import timedelta
 from django.db.models import prefetch_related_objects
 from django.utils import timezone
 from .services.promocoes import salvar_promocao
-from .services.dar_preco import obter_precos_atuais
+from .services.precos import obter_precos_atuais
 from .services.mesas import status_atual
 from .permissoes import tem_permissao
 from .validadores import validar_cpf, validar_telefone
@@ -248,12 +248,33 @@ class MesaSerializer(serializers.ModelSerializer):
     # Campos calculados como somente leitura
     capacidade_total = serializers.ReadOnlyField()
     is_principal = serializers.ReadOnlyField()
+    # Número da mesa principal do grupo, para exibir no lugar do id.
+    mesa_agrupada_numero = serializers.IntegerField(
+        source='mesa_agrupada.numero_mesa', read_only=True, default=None,
+    )
     
     class Meta:
         model = Mesa
         fields = '__all__'
         # O gerente da mesa é quem está logado; a view preenche esse campo.
         read_only_fields = ['gerente']
+        extra_kwargs = {
+            'numero_mesa': {
+                # A unicidade é conferida em validate_numero_mesa, com mensagem própria.
+                'validators': [],
+                'min_value': 1,
+                'error_messages': {'min_value': 'O número da mesa deve ser maior que zero.'},
+            },
+        }
+
+    def validate_numero_mesa(self, value):
+        # Mensagem amigável no lugar da padrão do validador de unicidade.
+        outras = Mesa.objects.filter(numero_mesa=value)
+        if self.instance is not None:
+            outras = outras.exclude(pk=self.instance.pk)
+        if outras.exists():
+            raise serializers.ValidationError(f'Já existe uma mesa com o número {value}.')
+        return value
 
     def get_status_dinamico(self, obj):
         # Considera comanda aberta, agrupamento e reserva próxima do horário.
@@ -515,7 +536,7 @@ class MesaDoPedidoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Mesa
-        fields = ["id", "garcom"]
+        fields = ["id", "numero_mesa", "garcom"]
 
 
 class PedidoSerializer(serializers.ModelSerializer):
@@ -600,6 +621,10 @@ class SolicitacaoSerializer(serializers.ModelSerializer):
         source='comanda.mesa_id',
         read_only=True,
     )
+    numero_mesa = serializers.IntegerField(
+        source='comanda.mesa.numero_mesa',
+        read_only=True,
+    )
     class Meta:
         model = Solicitacao
         fields = [
@@ -609,21 +634,24 @@ class SolicitacaoSerializer(serializers.ModelSerializer):
             'data_solicitacao',
             'comanda',
             'mesa',
+            'numero_mesa',
         ]
         read_only_fields = [
             'id',
             'status',
             'data_solicitacao',
             'mesa',
+            'numero_mesa',
         ]
 
 class ComandaConsultaSerializer(serializers.ModelSerializer):
     mesa = serializers.IntegerField(source="mesa_id", read_only=True)
+    numero_mesa = serializers.IntegerField(source="mesa.numero_mesa", read_only=True)
     pedidos = PedidoComandaSerializer(many=True, read_only=True)
     total = serializers.SerializerMethodField()
     class Meta:
         model = Comanda
-        fields = ["id", "mesa", "pedidos", "total"]
+        fields = ["id", "mesa", "numero_mesa", "pedidos", "total"]
 
     def get_total(self, obj):
         total = Decimal("0.00")
@@ -636,7 +664,7 @@ class ComandaConsultaSerializer(serializers.ModelSerializer):
 
 
 class HistoricoComandaSerializer(serializers.ModelSerializer):
-    mesa_numero = serializers.IntegerField(source="mesa.id", read_only=True)
+    mesa_numero = serializers.IntegerField(source="mesa.numero_mesa", read_only=True)
     garcom_nome = serializers.CharField(source="garcom.nome", read_only=True, default="Não registrado")
     pedidos = PedidoComandaSerializer(many=True, read_only=True)
     total = serializers.SerializerMethodField()

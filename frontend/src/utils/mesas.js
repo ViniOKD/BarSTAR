@@ -3,6 +3,16 @@ export function statusDaMesa(mesa) {
   return mesa.status_dinamico || mesa.status;
 }
 
+// As telas mostram o número escolhido pelo gerente; o id fica só nas requisições.
+export function numeroDaMesa(mesas, idMesa) {
+  return mesas.find((mesa) => mesa.id === idMesa)?.numero_mesa ?? idMesa;
+}
+
+// Sugere o próximo número livre ao cadastrar uma mesa.
+export function proximoNumeroDeMesa(mesas) {
+  return mesas.reduce((maior, mesa) => Math.max(maior, mesa.numero_mesa), 0) + 1;
+}
+
 const corDoStatus = {
   LIVRE: "bg-emerald-100 text-emerald-700",
   OCUPADA: "bg-red-100 text-red-700",
