@@ -1,16 +1,16 @@
+import datetime as dt
+
 from django.db.migrations.loader import MigrationLoader
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
+from django.utils import timezone
+from rest_framework.test import APIClient
+
+from .models import Comanda, Funcionario, Gerente, Mesa, Reserva, Solicitacao
 
 
 class MigrationTests(SimpleTestCase):
     def test_migrations_have_no_conflicting_branches(self):
         self.assertEqual(MigrationLoader(None).detect_conflicts(), {})
-
-
-from django.test import TestCase
-from rest_framework.test import APIClient
-
-from .models import Comanda, Funcionario, Gerente, Mesa
 
 
 class NumeroMesaTests(TestCase):
@@ -92,3 +92,242 @@ class NumeroMesaTests(TestCase):
 
         self.assertEqual(len(resposta.data), 1)
         self.assertEqual(resposta.data[0]["mesa_numero"], 30)
+
+
+
+class ComportamentoDasViewsTests(TestCase):
+    # Fixam as respostas das views antes de mover as regras para a camada de serviços.
+    def setUp(self):
+        self.gerente = Gerente.objects.create_user(
+            cpf="11111111111", password="senha", nome="Gerente", tel="44999990000", salario=0,
+        )
+        self.garcom = Funcionario.objects.create(
+            nome="Garçom", tel="44999990001", cpf="22222222222", salario=0,
+            cargo=Funcionario.Cargo.GARCOM, gerente=self.gerente,
+        )
+        self.mesa = self.criar_mesa(60)
+        self.gerencia = APIClient()
+        self.gerencia.force_authenticate(self.gerente)
+        self.tablet = APIClient()
+
+    def criar_mesa(self, numero, **extra):
+        return Mesa.objects.create(
+            numero_mesa=numero, capacidade=4, gerente=self.gerente, garcom=self.garcom, **extra,
+        )
+
+    def criar_comanda(self, mesa=None, **extra):
+        return Comanda.objects.create(
+            cpf="52998224725", telefone="44999990002", mesa=mesa or self.mesa, **extra,
+        )
+
+    def abrir(self, mesa_id):
+        return self.tablet.post(
+            f"/api/mesas/{mesa_id}/abrir-comanda/",
+            {"cpf": "529.982.247-25", "telefone": "(44) 99999-0002"},
+            format="json",
+        )
+
+    # Abertura e consulta de comanda
+
+    def test_abrir_comanda(self):
+        resposta = self.abrir(self.mesa.id)
+
+        self.assertEqual(resposta.status_code, 201)
+        self.assertEqual(resposta.data["numero_mesa"], 60)
+        self.assertTrue(Comanda.objects.filter(pk=resposta.data["id_comanda"], ativa=True).exists())
+
+    def test_abrir_comanda_mesa_inexistente(self):
+        resposta = self.abrir(999999)
+
+        self.assertEqual(resposta.status_code, 404)
+        self.assertEqual(resposta.data["erro"], "Mesa informada não existe no sistema.")
+
+    def test_abrir_comanda_cpf_invalido(self):
+        resposta = self.tablet.post(
+            f"/api/mesas/{self.mesa.id}/abrir-comanda/",
+            {"cpf": "123", "telefone": "44999990002"},
+            format="json",
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("cpf", resposta.data)
+
+    def test_abrir_comanda_mesa_inativa(self):
+        mesa = self.criar_mesa(61, status=Mesa.Status.INATIVA)
+
+        resposta = self.abrir(mesa.id)
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertEqual(resposta.data["erro"], "Mesa não está ativa e não pode receber novas comandas.")
+
+    def test_abrir_comanda_mesa_ocupada(self):
+        self.criar_comanda()
+
+        resposta = self.abrir(self.mesa.id)
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("já possui uma comanda em andamento", resposta.data["erro"])
+
+    def test_consultar_comanda_ativa(self):
+        comanda = self.criar_comanda()
+
+        resposta = self.tablet.get(f"/api/mesas/{self.mesa.id}/comanda/")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.data["id"], comanda.id)
+        self.assertEqual(resposta.data["numero_mesa"], 60)
+
+    def test_consultar_comanda_mesa_inexistente(self):
+        resposta = self.tablet.get("/api/mesas/999999/comanda/")
+
+        self.assertEqual(resposta.status_code, 404)
+        self.assertEqual(resposta.data["erro"], "Mesa informada não existe no sistema.")
+
+    # Solicitações
+
+    def solicitar(self, comanda, tipo="FECHAMENTO"):
+        return self.tablet.post("/api/solicitacoes/", {"comanda": comanda.id, "tipo": tipo}, format="json")
+
+    def test_criar_solicitacao(self):
+        comanda = self.criar_comanda()
+
+        resposta = self.solicitar(comanda)
+
+        self.assertEqual(resposta.status_code, 201)
+        self.assertEqual(resposta.data["status"], "PENDENTE")
+        self.assertEqual(resposta.data["numero_mesa"], 60)
+
+    def test_criar_solicitacao_sem_comanda(self):
+        resposta = self.tablet.post("/api/solicitacoes/", {"tipo": "FECHAMENTO"}, format="json")
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertEqual(resposta.data["erro"], "Informe o ID da comanda.")
+
+    def test_fechamento_duplicado(self):
+        comanda = self.criar_comanda()
+        self.solicitar(comanda)
+
+        resposta = self.solicitar(comanda)
+
+        self.assertEqual(resposta.status_code, 409)
+        self.assertEqual(resposta.data["erro"], "Já existe uma solicitação de fechamento pendente para esta comanda.")
+
+    def test_atendimento_pode_repetir(self):
+        comanda = self.criar_comanda()
+        self.solicitar(comanda, "ATENDIMENTO")
+
+        resposta = self.solicitar(comanda, "ATENDIMENTO")
+
+        self.assertEqual(resposta.status_code, 201)
+
+    def test_atender_solicitacao(self):
+        solicitacao = Solicitacao.objects.create(comanda=self.criar_comanda(), tipo="ATENDIMENTO")
+
+        resposta = self.gerencia.patch(f"/api/solicitacoes/{solicitacao.id}/atender/")
+        repetida = self.gerencia.patch(f"/api/solicitacoes/{solicitacao.id}/atender/")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.data["status"], "ATENDIDA")
+        self.assertEqual(repetida.status_code, 400)
+        self.assertEqual(repetida.data["erro"], "Apenas solicitações pendentes podem ser atendidas.")
+
+    # Mesas
+
+    def test_excluir_mesa_com_comanda_ativa(self):
+        self.criar_comanda()
+
+        resposta = self.gerencia.delete(f"/api/mesas/{self.mesa.id}/")
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("possui uma comanda ativa", resposta.data["erro"])
+
+    def test_excluir_mesa_livre(self):
+        mesa = self.criar_mesa(62)
+
+        resposta = self.gerencia.delete(f"/api/mesas/{mesa.id}/")
+
+        self.assertEqual(resposta.status_code, 204)
+        self.assertFalse(Mesa.objects.filter(pk=mesa.id).exists())
+
+    def test_inativar_mesa_com_comanda_ativa(self):
+        self.criar_comanda()
+
+        resposta = self.gerencia.put(
+            f"/api/mesas/{self.mesa.id}/",
+            {"numero_mesa": 60, "capacidade": 4, "status": "INATIVA", "garcom_id": self.garcom.id},
+            format="json",
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("possui uma comanda ativa", resposta.data["erro"])
+
+    def dados_reserva(self, dias=1):
+        return {
+            "cliente_nome": "Cliente",
+            "cliente_telefone": "44999990005",
+            "data_reserva": (timezone.localdate() + dt.timedelta(days=dias)).isoformat(),
+            "hora_reserva": "23:59",
+        }
+
+    def test_reservar_mesa(self):
+        resposta = self.gerencia.post(f"/api/mesas/{self.mesa.id}/reservar/", self.dados_reserva(), format="json")
+
+        self.assertEqual(resposta.status_code, 201)
+        self.assertEqual(resposta.data["mensagem"], "Reserva criada com sucesso!")
+        self.assertTrue(Reserva.objects.filter(mesa=self.mesa).exists())
+
+    def test_reservar_mesa_inativa(self):
+        mesa = self.criar_mesa(63, status=Mesa.Status.INATIVA)
+
+        resposta = self.gerencia.post(f"/api/mesas/{mesa.id}/reservar/", self.dados_reserva(), format="json")
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertEqual(resposta.data["erro"], "Não é possível reservar. A mesa está com status INATIVA.")
+
+    def test_reservar_mesa_agrupada_hoje(self):
+        filha = self.criar_mesa(64, status=Mesa.Status.AGRUPADA, mesa_agrupada=self.mesa)
+
+        resposta = self.gerencia.post(f"/api/mesas/{filha.id}/reservar/", self.dados_reserva(dias=0), format="json")
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertEqual(
+            resposta.data["erro"],
+            "A Mesa #64 está agrupada à Mesa #60. Faça a reserva diretamente na mesa principal.",
+        )
+
+    def test_reservar_no_mesmo_dia_duas_vezes(self):
+        self.gerencia.post(f"/api/mesas/{self.mesa.id}/reservar/", self.dados_reserva(), format="json")
+
+        resposta = self.gerencia.post(f"/api/mesas/{self.mesa.id}/reservar/", self.dados_reserva(), format="json")
+
+        self.assertEqual(resposta.status_code, 400)
+
+    def test_separar_mesas(self):
+        filha = self.criar_mesa(65, status=Mesa.Status.AGRUPADA, mesa_agrupada=self.mesa)
+
+        resposta = self.gerencia.post(f"/api/mesas/{self.mesa.id}/separar/")
+
+        self.assertEqual(resposta.status_code, 200)
+        filha.refresh_from_db()
+        self.assertIsNone(filha.mesa_agrupada)
+        self.assertEqual(filha.status, Mesa.Status.LIVRE)
+
+    def test_separar_mesa_sem_grupo(self):
+        resposta = self.gerencia.post(f"/api/mesas/{self.mesa.id}/separar/")
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertEqual(resposta.data["erro"], "Esta mesa não possui outras mesas agrupadas a ela.")
+
+    # Histórico
+
+    def test_historico_filtra_por_garcom_e_data(self):
+        self.criar_comanda(ativa=False)
+        hoje = timezone.localdate().isoformat()
+
+        resposta = self.gerencia.get(
+            "/api/historico/comandas/", {"garcom": "", "data_inicio": hoje, "data_fim": hoje},
+        )
+        vazia = self.gerencia.get("/api/historico/comandas/", {"data_fim": "2000-01-01"})
+
+        self.assertEqual(len(resposta.data), 1)
+        self.assertEqual(len(vazia.data), 0)

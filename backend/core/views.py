@@ -40,9 +40,11 @@ from .permissoes import (
     SEM_LOGIN, GerenteOuLeitura, PermissaoDoCargo, PodeAlterarDisponibilidade,
     SomenteGerente, cargo_de,
 )
+from .services.comandas import abrir_comanda, buscar_comanda_ativa, filtrar_historico
 from .services.mesas import (
-    erro_de_reserva_na_abertura, juntar_mesas, tem_comanda_ativa,
+    juntar_mesas, separar_mesas, validar_alteracao, validar_exclusao, validar_reserva,
 )
+from .services.solicitacoes import atender_solicitacao, criar_solicitacao
 from core.services.recomendacoes_cliente import obter_sugestoes_cliente
 
 
@@ -164,56 +166,17 @@ class CategoriaViewSet(viewsets.ModelViewSet):
 
 class AbrirComandaView(APIView):
     def post(self, request, id_mesa):
+        # Se CPF ou Telefone forem inválidos, retorna erro 400
         serializer = AbrirComandaSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        #Se CPF ou Telefone forem inválidos, retorna erro 400
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        cpf = serializer.validated_data['cpf']
-        telefone = serializer.validated_data['telefone']
-
-        with transaction.atomic():
-            # Bloqueia a mesa até terminar a abertura, evitando comandas simultâneas.
-            try:
-                mesa = Mesa.objects.select_for_update().get(id=id_mesa)
-            except Mesa.DoesNotExist:
-                return Response(
-                    {"erro": "Mesa informada não existe no sistema."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            if mesa.status == Mesa.Status.INATIVA:
-                return Response(
-                    {'erro': 'Mesa não está ativa e não pode receber novas comandas.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Verifica se a mesa já possui comanda ativa
-            if mesa.status == Mesa.Status.OCUPADA or tem_comanda_ativa(mesa):
-                return Response(
-                    {"erro": "Esta mesa já possui uma comanda em andamento. Procure o garçom para fechar a comanda atual."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Perto do horário de uma reserva, só libera a partir da tolerância.
-            erro_reserva = erro_de_reserva_na_abertura(mesa)
-            if erro_reserva:
-                return Response({"erro": erro_reserva}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Cria a nova comanda no MySQL
-            nova_comanda = Comanda.objects.create(
-                cpf=cpf,
-                telefone=telefone,
-                mesa=mesa,
-                ativa=True
-            )
+        comanda = abrir_comanda(id_mesa=id_mesa, **serializer.validated_data)
 
         return Response(
             {
                 "mensagem": "Comanda aberta com sucesso!",
-                "id_comanda": nova_comanda.id,
-                "numero_mesa": mesa.numero_mesa,
+                "id_comanda": comanda.id,
+                "numero_mesa": comanda.mesa.numero_mesa,
             },
             status=status.HTTP_201_CREATED
         )
@@ -234,23 +197,7 @@ class MesaPorNumeroView(APIView):
 
 class ConsultarComandaView(APIView):
     def get(self, request, id_mesa):
-        # Verifica se a mesa existe
-        mesa = Mesa.objects.filter(id=id_mesa).first()
-        if mesa is None:
-            return Response(
-                {"erro": "Mesa informada não existe no sistema."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Busca a comanda ativa vinculada à mesa
-        comanda = (
-            Comanda.objects
-            .filter(mesa_id=id_mesa, ativa=True)
-            .select_related("mesa")
-            .prefetch_related("pedidos__itens_pedido__item")
-            .order_by("-data_abertura")
-            .first()
-        )
+        mesa, comanda = buscar_comanda_ativa(id_mesa=id_mesa)
 
         if comanda is None:
             return Response(
@@ -259,10 +206,7 @@ class ConsultarComandaView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Converte a comanda e seus pedidos para JSON
-        serializer = ComandaConsultaSerializer(comanda)
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(ComandaConsultaSerializer(comanda).data, status=status.HTTP_200_OK)
 
 class EnviarPedidoView(APIView):
     def post(self, request):
@@ -366,61 +310,24 @@ class MesaViewSet(viewsets.ModelViewSet):
         serializer.save(gerente=self.request.user)
 
     def destroy(self, request, *args, **kwargs):
-        mesa = self.get_object()
-
-        if mesa.comandas.filter(ativa=True).exists():
-            return Response(
-                 {"erro": "Não é possivel excluir esta mesa pois ela possui uma comanda ativa em andamento."},
-                 status=status.HTTP_400_BAD_REQUEST
-            )
-
+        validar_exclusao(self.get_object())
         return super().destroy(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
-        mesa = self.get_object()
-        novo_status = request.data.get('status')
-
-        if novo_status == Mesa.Status.INATIVA:
-            if mesa.comandas.filter(ativa=True).exists():
-                return Response(
-                    {"erro": "Não é possível inativa esta mesa pois ela possui uma comanda ativa."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        validar_alteracao(self.get_object(), request.data.get('status'))
         return super().update(request, *args, **kwargs)
 
     @action(detail=True, methods=['POST'])
     def reservar(self, request, pk=None):
         mesa = self.get_object()
+        validar_reserva(mesa, request.data.get('data_reserva'))
 
-        # Verifica se a mesa já não está ocupada ou inativa
-        if mesa.status == 'INATIVA':
-            return Response(
-                {"erro": f"Não é possível reservar. A mesa está com status {mesa.status}."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        data_reserva_str = request.data.get('data_reserva')
-        # localdate usa o fuso do bar; now().date() usaria UTC e viraria o dia às 21h.
-        hoje_str = timezone.localdate().isoformat()
-
-        if (mesa.status == Mesa.Status.AGRUPADA or mesa.mesa_agrupada is not None) and data_reserva_str == hoje_str:
-            return Response(
-                {"erro": f"A Mesa #{mesa.numero_mesa} está agrupada à Mesa #{mesa.mesa_agrupada.numero_mesa if mesa.mesa_agrupada else '-'}. Faça a reserva diretamente na mesa principal."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-       
         # Passa o ID da mesa no contexto para a validação de conflito
         serializer = ReservaSerializer(data=request.data, context={'mesa_id': mesa.id})
+        serializer.is_valid(raise_exception=True)
+        serializer.save(mesa=mesa)
 
-        if serializer.is_valid():
-            # Salva a reserva vinculando à mesa atual
-            serializer.save(mesa=mesa)
-
-            return Response({"mensagem": "Reserva criada com sucesso!"}, status=status.HTTP_201_CREATED)
-        
-        # Erro: a validação de data no passado ou campo obrigatório falhou
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"mensagem": "Reserva criada com sucesso!"}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['POST'])
     def juntar(self, request, pk=None):
@@ -437,17 +344,7 @@ class MesaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['POST'])
     def separar(self, request, pk=None):
-        mesa_principal = self.get_object()
-        
-        mesas_filhas = mesa_principal.mesas_agrupadas.all()
-        if not mesas_filhas.exists():
-            return Response(
-                {"erro": "Esta mesa não possui outras mesas agrupadas a ela."}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Libera as mesas filhas, tirando o vínculo e voltando para LIVRE
-        mesas_filhas.update(mesa_agrupada=None, status=Mesa.Status.LIVRE)
+        separar_mesas(self.get_object())
 
         return Response({"mensagem": "Mesas separadas com sucesso!"}, status=status.HTTP_200_OK)
     
@@ -646,23 +543,11 @@ class SolicitacaoViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
 
     @action(detail=True, methods=['patch'], url_path='atender')
     def atender(self, request, pk=None):
-        solicitacao = self.get_object()
-
-        if solicitacao.status != Solicitacao.StatusSolicitacao.PENDENTE:
-            return Response(
-                {'erro': 'Apenas solicitações pendentes podem ser atendidas.'},
-                status=status.HTTP_400_BAD_REQUEST)
-
-        solicitacao.status = Solicitacao.StatusSolicitacao.ATENDIDA
-        solicitacao.save()
-        serializer = self.get_serializer(solicitacao)
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        solicitacao = atender_solicitacao(self.get_object())
+        return Response(self.get_serializer(solicitacao).data, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
-        id_comanda = request.data.get('comanda')
-
-        if not id_comanda:
+        if not request.data.get('comanda'):
             return Response(
                 {'erro': 'Informe o ID da comanda.'},
                 status=status.HTTP_400_BAD_REQUEST)
@@ -670,43 +555,11 @@ class SolicitacaoViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        try:
-            with transaction.atomic():
-                #Bloqueia a comanda durante a verificação e a criação.
-                comanda = Comanda.objects.select_for_update().get(
-                    pk=id_comanda,
-                    ativa=True
-                )
-
-                #Verifica se já existe um fechamento pendente.
-                if serializer.validated_data.get('tipo') == 'FECHAMENTO':
-
-                    fechamento_pendente = Solicitacao.objects.filter(
-                        comanda=comanda,
-                        tipo='FECHAMENTO',
-                        status='PENDENTE'
-                    ).exists()
-
-                    if fechamento_pendente:
-                        return Response(
-                            {
-                                'erro': (
-                                    'Já existe uma solicitação de fechamento '
-                                    'pendente para esta comanda.'
-                                )
-                            },
-                            status=status.HTTP_409_CONFLICT
-                        )
-                #cria a solicitação.
-                serializer.save(comanda=comanda)
-        except (Comanda.DoesNotExist, ValueError, TypeError):
-            return Response(
-                {'erro': 'Comanda não encontrada ou inativa.'},
-                status=status.HTTP_400_BAD_REQUEST)
-
-        return Response(
-            serializer.data,
-            status=status.HTTP_201_CREATED)
+        solicitacao = criar_solicitacao(
+            comanda_id=serializer.validated_data['comanda'].pk,
+            tipo=serializer.validated_data['tipo'],
+        )
+        return Response(self.get_serializer(solicitacao).data, status=status.HTTP_201_CREATED)
 
 def dados_do_usuario(usuario):
     # Dados que o front usa para saber quem entrou e para onde levar.
@@ -842,34 +695,14 @@ class HistoricoComandasView(APIView):
     permission_classes = [SomenteGerente]
 
     def get(self, request):
-        comandas = Comanda.objects.all()
-
-        # Captura os parâmetros
-        data_inicio = request.query_params.get('data_inicio')
-        data_fim = request.query_params.get('data_fim')
-        mesa = request.query_params.get('mesa')
-        garcom = request.query_params.get('garcom')
-
-        # APLICA OS FILTROS USANDO data_abertura
-        if data_inicio:
-            comandas = comandas.filter(data_abertura__gte=data_inicio)
-            
-        if data_fim:
-            comandas = comandas.filter(data_abertura__lte=f"{data_fim} 23:59:59") #mudar isso quando feito o fechamento da comanda
-            
-        if mesa:
-            # O gerente filtra pelo número que vê na tela, não pelo id interno.
-            comandas = comandas.filter(mesa__numero_mesa=mesa) 
-            
-        if garcom:
-            comandas = comandas.filter(garcom__nome__icontains=garcom)
-
-        # ORDENA PELA ABERTURA MAIS RECENTE
-        comandas = comandas.order_by('-data_abertura') 
-        
-        serializer = HistoricoComandaSerializer(comandas, many=True)
-        
-        return Response(serializer.data)
+        parametros = request.query_params
+        comandas = filtrar_historico(
+            data_inicio=parametros.get('data_inicio'),
+            data_fim=parametros.get('data_fim'),
+            numero_mesa=parametros.get('mesa'),
+            garcom=parametros.get('garcom'),
+        )
+        return Response(HistoricoComandaSerializer(comandas, many=True).data)
 
 class RecomendacoesClienteView(APIView):
     # Cliente consulta pelo tablet sem login, igual ao cardápio e à comanda.
