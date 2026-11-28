@@ -2,14 +2,16 @@ import { useState } from "react";
 import logo from "../assets/logo.svg";
 import { requisicaoApi } from "../utils/api.js";
 
+const url = "/gerente";
+
 const linksPrincipais = [
-  { nome: "Dashboard", href: "/gerente" },
-  { nome: "Usuários", href: "/gerente/usuarios" },
-  { nome: "Mesas", href: "/gerente/mesas" },
-  { nome: "Categorias", href: "/gerente/categorias" },
-  { nome: "Produtos", href: "/gerente/produtos" },
-  { nome: "Promoções", href: "/gerente/promocoes" },
-  { nome: "Comandas", href: "/gerente/comandas" },
+  { nome: "Dashboard", href: `${url}` },
+  { nome: "Usuários", href: `${url}/usuarios` },
+  { nome: "Mesas", href: `${url}/mesas` },
+  { nome: "Categorias", href: `${url}/categorias` },
+  { nome: "Produtos", href: `${url}/produtos` },
+  { nome: "Promoções", href: `${url}/promocoes` },
+  { nome: "Histórico", href: `${url}/historico` },
 ];
 
 const estiloLink =

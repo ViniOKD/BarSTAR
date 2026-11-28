@@ -1,13 +1,40 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import formatarPreco from "../utils/formatarPreco";
 import { deCentavos, paraCentavos } from "../utils/valores";
+import { requisicaoApi } from "../utils/api";
 
-export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, onEditarItem, onEnviar,
+export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, onEditarItem, onSelecionarSugestao, onEnviar,
   enviando = false, atualizando = false, erro = "", aviso = "", onAtualizar }) {
   const dialogoRef = useRef(null);
   const ocupado = atualizando || enviando;
   const indisponivel = itens.some((item) => item.disponivel === false);
-  const total = itens.reduce((soma, item) => soma + BigInt(paraCentavos(item.preco_atual)) * BigInt(item.quantidade), 0n);
+  const total = itens.reduce((soma, item) => soma + paraCentavos(item.preco_atual) * item.quantidade, 0);
+
+  const [sugestoes, setSugestoes] = useState([]);
+
+  useEffect(() => {
+    if (!aberto || itens.length === 0) {
+      setSugestoes([]);
+      return;
+    }
+
+    const ids = [...new Set(itens.map((item) => item.id).filter(Boolean))];
+    if (ids.length === 0) return;
+
+    let cancelado = false;
+    requisicaoApi(`/api/recomendacoes/?itens=${ids.join(",")}`)
+      .then((dados) => {
+        if (!cancelado) setSugestoes(Array.isArray(dados) ? dados : []);
+      })
+      .catch(() => {
+        if (!cancelado) setSugestoes([]);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [aberto, itens]);
+
 
   useEffect(() => {
     if (!aberto) return;
@@ -128,111 +155,145 @@ export default function Pedidos({ aberto, onFechar, itens = [], onRemoverItem, o
               </p>
             </div>
           ) : (
-            itens.map((item) => (
-              <article
-                key={item.idItemPedido}
-                className="rounded-xl border border-hover/50 bg-white/70 p-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="font-bold">{item.nome}</h3>
+            <>
+              {itens.map((item) => (
+                <article
+                  key={item.idItemPedido}
+                  className="rounded-xl border border-hover/50 bg-white/70 p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-bold">{item.nome}</h3>
 
-                    <p className="mt-1 text-sm text-header/70">
-                      {formatarPreco(item.preco_atual)} cada
-                    </p>
-                    {item.promocao_atual && paraCentavos(item.preco_atual) < paraCentavos(item.preco_unitario) && (
-                      <>
-                        <p className="text-sm text-header/70">
-                          <span className="sr-only">Preço normal: </span><s>{formatarPreco(item.preco_unitario)}</s>
-                        </p>
-                        <p className="text-sm text-header/70">
-                          {item.promocao_atual.desconto_percentual}% de desconto · {item.promocao_atual.nome}
-                        </p>
-                      </>
-                    )}
-                    {item.disponivel === false && <p className="mt-1 text-sm font-semibold text-red-700">Produto indisponível</p>}
-                  </div>
-
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <span className="font-bold text-[#996315]">
-                      {formatarPreco(
-                        deCentavos(BigInt(paraCentavos(item.preco_atual)) * BigInt(item.quantidade))
+                      <p className="mt-1 text-sm text-header/70">
+                        {formatarPreco(item.preco_atual)} cada
+                      </p>
+                      {item.promocao_atual && paraCentavos(item.preco_atual) < paraCentavos(item.preco_unitario) && (
+                        <>
+                          <p className="text-sm text-header/70">
+                            <span className="sr-only">Preço normal: </span><s>{formatarPreco(item.preco_unitario)}</s>
+                          </p>
+                          <p className="text-sm text-header/70">
+                            {item.promocao_atual.desconto_percentual}% de desconto · {item.promocao_atual.nome}
+                          </p>
+                        </>
                       )}
-                    </span>
+                      {item.disponivel === false && <p className="mt-1 text-sm font-semibold text-red-700">Produto indisponível</p>}
+                    </div>
 
-                    <div className="flex items-center gap-1">
-                      {/* Editar */}
-                      <button
-                        type="button"
-                        onClick={() => onEditarItem(item)}
-                        disabled={ocupado || item.disponivel === false}
-                        aria-label={`Editar ${item.nome}`}
-                        title="Editar item"
-                        className="rounded-md p-2 text-green-600 transition-colors
-                                  hover:bg-green-50 hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <svg
-                          aria-hidden="true"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="size-5"
-                        >
-                          <path d="M12 20h9" />
-                          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
-                        </svg>
-                      </button>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <span className="font-bold text-[#996315]">
+                        {formatarPreco(
+                          deCentavos(paraCentavos(item.preco_atual) * item.quantidade)
+                        )}
+                      </span>
 
-                      {/* Remover */}
-                      <button
-                        type="button"
-                        onClick={() => onRemoverItem(item.idItemPedido)}
-                        disabled={ocupado}
-                        aria-label={`Remover ${item.nome}`}
-                        title="Remover item"
-                        className="rounded-md p-2 text-red-600 transition-colors
-                                  hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <svg
-                          aria-hidden="true"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="size-5"
+                      <div className="flex items-center gap-1">
+                        {/* Editar */}
+                        <button
+                          type="button"
+                          onClick={() => onEditarItem(item)}
+                          disabled={ocupado || item.disponivel === false}
+                          aria-label={`Editar ${item.nome}`}
+                          title="Editar item"
+                          className="rounded-md p-2 text-green-600 transition-colors
+                                    hover:bg-green-50 hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <path d="M3 6h18" />
-                          <path d="M8 6V4h8v2" />
-                          <path d="m19 6-1 14H6L5 6" />
-                          <path d="M10 11v6" />
-                          <path d="M14 11v6" />
-                        </svg>
-                      </button>
+                          <svg
+                            aria-hidden="true"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="size-5"
+                          >
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
+                          </svg>
+                        </button>
+
+                        {/* Remover */}
+                        <button
+                          type="button"
+                          onClick={() => onRemoverItem(item.idItemPedido)}
+                          disabled={ocupado}
+                          aria-label={`Remover ${item.nome}`}
+                          title="Remover item"
+                          className="rounded-md p-2 text-red-600 transition-colors
+                                    hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="size-5"
+                          >
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4h8v2" />
+                            <path d="m19 6-1 14H6L5 6" />
+                            <path d="M10 11v6" />
+                            <path d="M14 11v6" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <p className="mt-2 text-sm">
-                  Quantidade: {item.quantidade}
-                </p>
-
-                {item.observacoes && (
-                  <p className="mt-1 break-words text-sm text-header/70">
-                    Observações: {item.observacoes}
+                  <p className="mt-2 text-sm">
+                    Quantidade: {item.quantidade}
                   </p>
-                )}
-              </article>
-            ))
+
+                  {item.observacoes && (
+                    <p className="mt-1 break-words text-sm text-header/70">
+                      Observações: {item.observacoes}
+                    </p>
+                  )}
+                </article>
+              ))}
+              {sugestoes.length > 0 && (
+                <div className="mt-3 border-t border-hover/40 pt-3">
+                  <h3 className="font-header text-sm font-bold text-header">
+                    Que tal acompanhar com...
+                  </h3>
+                  <div className="mt-2 space-y-2">
+                    {sugestoes.map((sugestao) => (
+                      <button
+                        key={sugestao.id}
+                        type="button"
+                        onClick={() => onSelecionarSugestao && onSelecionarSugestao(sugestao)}
+                        disabled={ocupado}
+                        className="flex w-full items-center justify-between gap-3 rounded-lg border border-hover/50 bg-white/80 p-2.5 text-left transition-colors hover:bg-destaque disabled:opacity-50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold">{sugestao.nome}</p>
+                          <p className="text-xs font-semibold text-[#996315]">
+                            {formatarPreco(sugestao.preco_atual)}
+                          </p>
+                          {sugestao.promocao_atual && (
+                            <p className="text-xs text-green-700 font-medium">
+                              {sugestao.promocao_atual.desconto_percentual}% off · {sugestao.promocao_atual.nome}
+                            </p>
+                          )}
+                        </div>
+                        <span className="shrink-0 rounded-md border border-[#996315] px-2.5 py-1 text-xs font-bold text-[#996315]">
+                          Escolher
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
-
         <footer className="mt-5 border-t border-hover/40 pt-5">
           <div className="mb-4 flex items-center justify-between">
             <span className="font-medium">Total parcial</span>

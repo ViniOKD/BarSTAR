@@ -4,22 +4,32 @@ import Sidebar from "./components/Sidebar";
 import Bebidas from "./pages/Bebidas";
 import Comidas from "./pages/Comidas";
 import Comanda from "./pages/Comanda";
+import PromocoesCliente from "./pages/PromocoesCliente";
 import Configuracoes from "./pages/Configuracoes";
 import PainelGerente from "./pages/PainelGerente";
 import { SidebarGerente } from "./components/SidebarGerente";
+import RotaProtegida from "./components/RotaProtegida";
+import PainelCozinha from "./pages/cozinha/PainelCozinha";
+import DisponibilidadeCozinha from "./pages/cozinha/DisponibilidadeCozinha";
+import PainelBar from "./pages/bar/PainelBar";
+import DisponibilidadeBar from "./pages/bar/DisponibilidadeBar";
+import { SidebarCozinha } from "./components/SidebarCozinha";
+import { SidebarBar } from "./components/SidebarBar";
 import Usuarios from "./pages/gerente/Usuarios";
 import Mesas from "./pages/gerente/Mesas";
 import Categorias from "./pages/gerente/Categorias";
 import Produtos from "./pages/gerente/Produtos";
 import Promocoes from "./pages/gerente/Promocoes";
-import Comandas from "./pages/gerente/Comandas";
+import Historico from "./pages/gerente/Historico";
 import Pedidos from "./components/Pedidos";
 import { requisicaoApi } from "./utils/api";
 import { atualizarPrecosCarrinho, aplicarPrecosAlterados, dadosEnvioPedido } from "./utils/carrinho";
 import PainelGarcom from "./pages/garcom/PainelGarcom";
 import SolicitacoesGarcom from "./pages/garcom/SolicitacoesGarcom";
+import PedidosGarcom from "./pages/garcom/PedidosGarcom";
 import { SidebarGarcom } from "./components/SidebarGarcom";
 import FecharConta from "./pages/garcom/FecharConta";
+import ModalProduto from "./components/ModalProduto";
 
 const telasGerente = {
   "/gerente": <PainelGerente />,
@@ -28,11 +38,23 @@ const telasGerente = {
   "/gerente/categorias": <Categorias />,
   "/gerente/produtos": <Produtos />,
   "/gerente/promocoes": <Promocoes />,
-  "/gerente/comandas": <Comandas />,
+  "/gerente/historico": <Historico />,
 };
 
 const telasGarcom = {
   "/garcom": <PainelGarcom />,
+  "/garcom/solicitacoes": <SolicitacoesGarcom />,
+  "/garcom/pedidos": <PedidosGarcom />,
+};
+
+const telasCozinha = {
+  "/cozinha": <PainelCozinha />,
+  "/cozinha/disponibilidade": <DisponibilidadeCozinha />,
+};
+
+const telasBar = {
+  "/bar": <PainelBar />,
+  "/bar/disponibilidade": <DisponibilidadeBar />,
 };
 
 export default function App() {
@@ -43,12 +65,14 @@ export default function App() {
   const [pedidosAberto, setPedidosAberto] = useState(false);
   const [itensPedido, setItensPedido] = useState([]);
   const [itemEmEdicao, setItemEmEdicao] = useState(null);
+  const [sugestaoSelecionada, setSugestaoSelecionada] = useState(null);
   const [enviandoPedido, setEnviandoPedido] = useState(false);
   const [atualizandoPedido, setAtualizandoPedido] = useState(false);
   const [erroPedido, setErroPedido] = useState("");
   const [avisoPedido, setAvisoPedido] = useState("");
   const [solicitacoesPendentes, setSolicitacoesPendentes] = useState([]);
   const [solicitacaoFechamento, setSolicitacaoFechamento] = useState(null);
+  const [pedidosPendentes, setPedidosPendentes] = useState(0);
   const operacaoPedido = useRef(false);
 
   async function abrirPedidos() {
@@ -238,11 +262,9 @@ export default function App() {
         // Junta os itens de todos os pedidos da comanda.
         const itens = (dados.pedidos ?? []).flatMap((pedido) =>
           (pedido.itens ?? []).map((item) => ({
-            id: item.id,
-            item: { nome: item.nome },
+            // Mantém nome, status e dados da promoção; a tela usa "preco".
+            ...item,
             preco: item.preco_unitario,
-            quantidade: item.quantidade,
-            status: item.status,
           }))
         );
 
@@ -263,7 +285,6 @@ export default function App() {
   useEffect(() => {
     const estaNaAreaGarcom =
       Object.hasOwn(telasGarcom, paginaAtual) ||
-      paginaAtual === "/garcom/solicitacoes" ||
       paginaAtual === "/garcom/fechar-conta";
 
     if (!estaNaAreaGarcom) return;
@@ -277,7 +298,9 @@ export default function App() {
 
         const dados = await resposta.json();
 
-        const lista = dados;
+        const lista = Array.isArray(dados)
+          ? dados
+          : dados.results ?? [];
 
         const pendentes = lista.filter(
           solicitacao => solicitacao.status === "PENDENTE"
@@ -290,9 +313,38 @@ export default function App() {
       }
     }
 
-    buscarSolicitacoes();
+  async function buscarPedidosProntos() {
+  try {
+    const dados = await requisicaoApi("/api/pedidos/", {
+      cache: "no-store",
+    });
 
-    const intervalo = setInterval(buscarSolicitacoes, 5000);
+    const lista = Array.isArray(dados)
+      ? dados
+      : dados.results ?? [];
+
+    const quantidade = lista.reduce(
+      (total, pedido) =>
+        total +
+        (pedido.itens_pedido ?? []).filter(
+          (item) => item.status === "PRONTO"
+        ).length,
+      0
+    );
+
+    setPedidosPendentes(quantidade);
+  } catch (erro) {
+    console.error("Erro ao consultar pedidos prontos:", erro);
+  }
+}
+
+  buscarSolicitacoes();
+  buscarPedidosProntos();
+
+  const intervalo = setInterval(() => {
+    buscarSolicitacoes();
+    buscarPedidosProntos();
+  }, 5000);
 
     return () => clearInterval(intervalo);
   }, [paginaAtual]);
@@ -309,49 +361,44 @@ export default function App() {
     );
   }
 
-  if (paginaAtual === "/configuracoes") {
+  // O endereço antigo do login do garçom leva ao login único.
+  if (paginaAtual === "/configuracoes" || paginaAtual === "/login/garcom") {
     return <Configuracoes />;
   }
-
+  
   if (Object.hasOwn(telasGerente, paginaAtual)) {
     return (
-      <>
+      <RotaProtegida cargos={["GERENTE"]}>
         <SidebarGerente paginaAtual={paginaAtual}  />
         <main className="ml-64 min-h-screen bg-fundo p-8">
           {telasGerente[paginaAtual]}
         </main>
-      </>
+      </RotaProtegida>
     );
   }
 
   // Telas do garçom
   if (paginaAtual === "/garcom/fechar-conta") {
     return (
-      <>
-        <SidebarGarcom
-          paginaAtual={paginaAtual}
-          quantidadePendentes={solicitacoesPendentes.length}
-        />
-
+      <RotaProtegida cargos={["GARCOM", "GERENTE"]}>
+        <SidebarGarcom paginaAtual={paginaAtual} quantidadePendentes={solicitacoesPendentes.length} quantidadePedidosPendentes={pedidosPendentes}/>
         <main className="ml-64 min-h-screen bg-fundo p-8">
           <FecharConta
             solicitacao={solicitacaoFechamento}
             onVoltar={voltarParaSolicitacoes}
           />
         </main>
-      </>
+      </RotaProtegida>
     );
   }
   
-  if (
-    Object.hasOwn(telasGarcom, paginaAtual) ||
-    paginaAtual === "/garcom/solicitacoes"
-  ) {
+    if (Object.hasOwn(telasGarcom, paginaAtual)) {
     return (
-      <>
+      <RotaProtegida cargos={["GARCOM", "GERENTE"]}>
         <SidebarGarcom
           paginaAtual={paginaAtual}
           quantidadePendentes={solicitacoesPendentes.length}
+          quantidadePedidosPendentes={pedidosPendentes}
         />
 
         <main className="ml-64 min-h-screen bg-fundo p-8">
@@ -363,9 +410,33 @@ export default function App() {
             telasGarcom[paginaAtual]
           )}
         </main>
-      </>
+      </RotaProtegida>
     );
   }
+
+  if (Object.hasOwn(telasCozinha, paginaAtual)) {
+  return (
+    <RotaProtegida cargos={["COZINHA"]}>
+      <SidebarCozinha paginaAtual={paginaAtual} />
+
+      <main className="ml-64 min-h-screen bg-fundo p-8">
+        {telasCozinha[paginaAtual]}
+      </main>
+    </RotaProtegida>
+  );
+}
+
+if (Object.hasOwn(telasBar, paginaAtual)) {
+  return (
+    <RotaProtegida cargos={["BAR"]}>
+      <SidebarBar paginaAtual={paginaAtual} />
+
+      <main className="ml-64 min-h-screen bg-fundo p-8">
+        {telasBar[paginaAtual]}
+      </main>
+    </RotaProtegida>
+  );
+}
 
   // Se já passou possui comanda, exibe a estrutura completa do Cardápio
   return (
@@ -379,7 +450,7 @@ export default function App() {
       />
       <main className="ml-64 flex-1 p-6">
 
-        {paginaAtual === "/cardapio" && (
+        {(paginaAtual === "/cardapio" || paginaAtual === "/promocoes") && (
           <div className="mb-6 flex justify-end">
             <button
               type="button"
@@ -446,26 +517,50 @@ export default function App() {
           </>
         )}
 
-        {paginaAtual === "/promocoes" && <h1>Promoções</h1>}
+        {paginaAtual === "/promocoes" && (
+          <PromocoesCliente
+            onAdicionarItem={adicionarItemPedido}
+            itemEmEdicao={itemEmEdicao}
+            onAtualizarItem={atualizarItemPedido}
+            onCancelarEdicao={() => setItemEmEdicao(null)}
+          />
+        )}
 
         {paginaAtual === "/comanda" && (
           <Comanda itens={itensComanda} />
         )}
 
         {/* Painel lateral de Pedidos */}
-        {paginaAtual === "/cardapio" && (
+        {(paginaAtual === "/cardapio" || paginaAtual === "/promocoes") && (
           <Pedidos
             aberto={pedidosAberto}
             onFechar={() => setPedidosAberto(false)}
             itens={itensPedido}
             onRemoverItem={removerItemPedido}
             onEditarItem={editarItemPedido}
+            onSelecionarSugestao={(sugestao) => {
+              setPedidosAberto(false);
+              setSugestaoSelecionada(sugestao);
+            }}
             onEnviar={enviarPedido}
             enviando={enviandoPedido}
             atualizando={atualizandoPedido}
             erro={erroPedido}
             aviso={avisoPedido}
             onAtualizar={abrirPedidos}
+          />
+        )}
+          
+          {sugestaoSelecionada && (
+          <ModalProduto
+            key={sugestaoSelecionada.id}
+            produto={sugestaoSelecionada}
+            onFechar={() => setSugestaoSelecionada(null)}
+            onAdicionar={(itemComQuantidadeEObs) => {
+              adicionarItemPedido(itemComQuantidadeEObs);
+              setSugestaoSelecionada(null);
+              setPedidosAberto(true);
+            }}
           />
         )}
 

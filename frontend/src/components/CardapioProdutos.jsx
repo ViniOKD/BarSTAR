@@ -3,7 +3,7 @@ import CardProduto from "./CardProduto";
 import FiltroCategorias from "./FiltroCategorias";
 import ModalProduto from "./ModalProduto";
 
-const intervaloAtualizacao = 500;
+const intervaloAtualizacao = 3000;
 
 export default function CardapioProdutos({ tipoCategoria, nomePagina, onAdicionarItem, itemEmEdicao, onAtualizarItem, onCancelarEdicao, }) {
   const [produtos, setProdutos] = useState([]);

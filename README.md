@@ -154,14 +154,14 @@ Os dados do MySQL ficam em um volume Docker.
 Este projeto usa **[drf-spectacular](https://drf-spectacular.readthedocs.io/)** para gerar a especificação OpenAPI 3.1 automaticamente a partir do código Django REST Framework.
 
 Swagger UI (interativo)
-http://localhost:8000/api/docs/
+http://localhost:8000/api/docs/swagger/
 - Testa endpoints direto no browser
 - Autenticação via token (se configurado)
 - Mostra request/response examples
 
 
 ReDoc (documentação limpa)
-http://localhost:8000/api/redoc/
+http://localhost:8000/api/docs/redoc/
 - Visualização apenas para leitura
 - Melhor para compartilhar com frontend/mobile
 - Busca, navegação por tags, modelos expansíveis

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import formatarPreco from "../utils/formatarPreco.js";
-import { dataParaCampo, formatarDataPromocao, prepararPromocao, previaPromocao } from "../utils/promocoes.js";
+import { dadosDaPromocao, dataParaCampo, formatarDataPromocao, previaPromocao, validarPromocao } from "../utils/promocoes.js";
 
 const campoClasse = "mt-1 w-full rounded-md border border-gray-400 bg-white p-2 text-header focus:outline-2 focus:outline-hover disabled:opacity-60";
 
@@ -37,14 +37,14 @@ export default function FormPromocao({ promocao, produtos, salvando, erros, onSa
   function salvar(evento) {
     evento.preventDefault();
     if (salvando) return;
-    const resultado = prepararPromocao(formulario, produtos, promocao);
-    setErrosLocais(resultado.erros);
-    if (!resultado.dados) {
-      const primeiro = Object.keys(resultado.erros)[0];
-      evento.currentTarget.querySelector(`[name="${primeiro}"]`)?.focus();
+    const erros = validarPromocao(formulario);
+    setErrosLocais(erros);
+    const primeiroCampoComErro = Object.keys(erros)[0];
+    if (primeiroCampoComErro) {
+      evento.currentTarget.querySelector(`[name="${primeiroCampoComErro}"]`)?.focus();
       return;
     }
-    onSalvar(resultado.dados);
+    onSalvar(dadosDaPromocao(formulario));
   }
 
   function selecionar(id, selecionado) {
@@ -87,7 +87,7 @@ export default function FormPromocao({ promocao, produtos, salvando, erros, onSa
           </div>
           <div>
             <label htmlFor="promocao-percentual" className="font-semibold">Desconto percentual comum (%) *</label>
-            <input id="promocao-percentual" name="desconto_percentual" type="number" inputMode="decimal" min="0" max="100" step="any" required value={formulario.desconto_percentual} onChange={alterar} className={campoClasse} aria-invalid={Boolean(errosCampos.desconto_percentual)} aria-describedby="erro-desconto_percentual" />
+            <input id="promocao-percentual" name="desconto_percentual" type="number" inputMode="decimal" min="0" max="100" step="0.01" required value={formulario.desconto_percentual} onChange={alterar} className={campoClasse} aria-invalid={Boolean(errosCampos.desconto_percentual)} aria-describedby="erro-desconto_percentual" />
             <ErroCampo campo="desconto_percentual" erros={errosCampos} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

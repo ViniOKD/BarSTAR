@@ -31,3 +31,19 @@ export async function requisicaoApi(url, opcoes = {}) {
   if (!json) throw new Error("O servidor retornou uma resposta inválida. Tente novamente.");
   return dados;
 }
+
+// Transforma o erro lançado por requisicaoApi em um texto para mostrar na tela.
+export function mensagemDoErro(erro) {
+  // fetch lança TypeError quando não consegue falar com o servidor.
+  if (erro instanceof TypeError) return "Erro de conexão. Não foi possível alcançar o servidor.";
+
+  // Erros de validação chegam como { campo: ["mensagem"] }; junta as mensagens.
+  const dados = erro.dados;
+  const erroDeValidacao = dados && typeof dados === "object" && !dados.detail && typeof dados.erro !== "string";
+  if (erroDeValidacao) {
+    const mensagens = Object.values(dados).flat().filter((mensagem) => typeof mensagem === "string");
+    if (mensagens.length > 0) return mensagens.join(" ");
+  }
+
+  return erro.message;
+}

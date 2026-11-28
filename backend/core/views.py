@@ -1,36 +1,50 @@
 from django.db import connection, transaction
+from django.db.models import Q
 from django.db.models.deletion import ProtectedError
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import logout
 from rest_framework import viewsets, status, mixins, viewsets, status
-
-
-
 from rest_framework.decorators import action
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
+from django.utils.dateparse import parse_date
+from datetime import datetime, time
+from decimal import Decimal
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from .services.dar_preco import calcular_preco_final
 from .models import (
-    Gerente, Garcom, Mesa, Cozinha, Categoria,
-    Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao,Pagamento
-)
+    Gerente, Funcionario, Mesa, Cozinha, Categoria, Item, Pedido, ItensPedido, Promocao, ItensPromocao, Comanda, Solicitacao, Reserva, Pagamento)
 from .serializers import (
-    PedidoSerializer, CategoriaSerializer, GerenteSerializer, GarcomSerializer,
+    PedidoSerializer, CategoriaSerializer, GerenteSerializer, FuncionarioSerializer,
     MesaSerializer, CozinhaSerializer, ItemSerializer, ItensPedidoSerializer,
     ItensPromocaoSerializer, PromocaoSerializer, AbrirComandaSerializer,
-    FiltroCardapioSerializer,ComandaConsultaSerializer, ItemCardapioSerializer, EnviarPedidoSerializer, SolicitacaoSerializer,PagamentoSerializer)
-from .permissions import PermissoesPromocao
+    FiltroCardapioSerializer,ComandaConsultaSerializer, ReservaSerializer, FiltroDashboardSerializer,
+    FiltroRelatorioSerializer,
+    ItemCardapioSerializer, EnviarPedidoSerializer, DisponibilidadeItemSerializer, SolicitacaoSerializer, HistoricoComandaSerializer, PagamentoSerializer)
 from .services.promocoes import (
     bloquear_itens, remover_promocao, validar_alteracao_preco_normal,
 )
 from .services.dar_preco import obter_precos_atuais
-from .services.pedidos import enviar_pedido
-from decimal import Decimal
+from .services.dashboard_gerente import resumir_dashboard
+from .services.relatorio_vendas import gerar_csv, gerar_pdf, gerar_relatorio
+from .services.pedidos import cozinha_do_usuario, enviar_pedido
+from .autenticacao import (
+    buscar_funcionario, entrar_como_funcionario, entrar_como_gerente,
+)
+from .permissoes import (
+    SEM_LOGIN, GerenteOuLeitura, PermissaoDoCargo, PodeAlterarDisponibilidade,
+    SomenteGerente, cargo_de,
+)
+from .services.mesas import (
+    erro_de_reserva_na_abertura, juntar_mesas, tem_comanda_ativa,
+)
+from core.services.recomendacoes_cliente import obter_sugestoes_cliente
+
 
 # Uma view (ou viewset) é o "controlador" que recebe a requisição do usuário, 
 # processa a lógica necessária usando seus modelos e serializers, 
@@ -57,8 +71,19 @@ class PedidoViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
         "comanda__mesa__garcom__gerente", "cozinha",
     ).prefetch_related("itens_pedido__item__categoria")
     serializer_class = PedidoSerializer
-    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    permission_classes = [PermissaoDoCargo]
+    permissoes_por_metodo = {"GET": "ver_pedidos", "PATCH": "atualizar_preparo"}
     http_method_names = ["get", "patch", "head", "options"]
+
+    def get_queryset(self):
+        pedidos = super().get_queryset()
+
+        # Cozinha vê só os pedidos de comida e bar só os de bebida.
+        cozinha_id = cozinha_do_usuario(self.request.user)
+        if cozinha_id is not None:
+            pedidos = pedidos.filter(cozinha_id=cozinha_id)
+
+        return pedidos
 
 
 class ItensPedidoViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
@@ -66,13 +91,26 @@ class ItensPedidoViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
     
     queryset = ItensPedido.objects.select_related("item__categoria", "pedido")
     serializer_class = ItensPedidoSerializer
-    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    permission_classes = [PermissaoDoCargo]
+    # No PATCH, o serializer confere a permissão de acordo com o novo status.
+    permissoes_por_metodo = {"GET": "ver_pedidos", "PATCH": "ver_pedidos"}
     http_method_names = ["get", "patch", "head", "options"]
+
+    def get_queryset(self):
+        itens = super().get_queryset()
+
+        # Cozinha vê só os itens de comida e bar só os de bebida.
+        cozinha_id = cozinha_do_usuario(self.request.user)
+        if cozinha_id is not None:
+            itens = itens.filter(pedido__cozinha_id=cozinha_id)
+
+        return itens
 
 class CategoriaViewSet(viewsets.ModelViewSet):
     queryset = Categoria.objects.all()
     serializer_class = CategoriaSerializer
-    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
+    # Só as telas do gerente usam; o cardápio recebe a categoria dentro de cada item.
+    permission_classes = [SomenteGerente]
    
 
     def get_queryset(self):
@@ -147,18 +185,23 @@ class AbrirComandaView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-            if not mesa.ativo:
+            if mesa.status == Mesa.Status.INATIVA:
                 return Response(
-                    {'erro': 'Mesa não está ativa.'},
+                    {'erro': 'Mesa não está ativa e não pode receber novas comandas.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
             # Verifica se a mesa já possui comanda ativa
-            if Comanda.objects.filter(mesa=mesa, ativa=True).exists():
+            if mesa.status == Mesa.Status.OCUPADA or tem_comanda_ativa(mesa):
                 return Response(
                     {"erro": "Esta mesa já possui uma comanda em andamento. Procure o garçom para fechar a comanda atual."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+
+            # Perto do horário de uma reserva, só libera a partir da tolerância.
+            erro_reserva = erro_de_reserva_na_abertura(mesa)
+            if erro_reserva:
+                return Response({"erro": erro_reserva}, status=status.HTTP_400_BAD_REQUEST)
 
             # Cria a nova comanda no MySQL
             nova_comanda = Comanda.objects.create(
@@ -228,19 +271,174 @@ class EnviarPedidoView(APIView):
 class GerenteViewSet(viewsets.ModelViewSet):
     queryset = Gerente.objects.all()
     serializer_class = GerenteSerializer
+    permission_classes = [SomenteGerente]
 
-class GarcomViewSet(viewsets.ModelViewSet):
-    queryset = Garcom.objects.all()
-    serializer_class = GarcomSerializer
+# O gerente cadastra, edita, ativa e inativa funcionários. Não há exclusão:
+# quem sai do bar é inativado, para manter o histórico das mesas e pedidos.
+class FuncionarioViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
+                         mixins.RetrieveModelMixin, mixins.UpdateModelMixin,
+                         viewsets.GenericViewSet):
+    queryset = Funcionario.objects.all()
+    serializer_class = FuncionarioSerializer
+    permission_classes = [SomenteGerente]
+    http_method_names = ["get", "post", "patch", "head", "options"]
 
+    def get_queryset(self):
+        funcionarios = super().get_queryset()
+        if self.action != 'list':
+            return funcionarios
+
+        # Filtros opcionais: /api/funcionarios/?cargo=GARCOM&ativo=true
+        cargo = self.request.query_params.get('cargo')
+        ativo = self.request.query_params.get('ativo')
+
+        if cargo:
+            funcionarios = funcionarios.filter(cargo=cargo)
+
+        if ativo in ('true', 'false'):
+            funcionarios = funcionarios.filter(ativo=(ativo == 'true'))
+
+        return funcionarios
+
+    def perform_create(self, serializer):
+        serializer.save(gerente=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def inativar(self, request, pk=None):
+        funcionario = self.get_object()
+
+        # As mesas precisam de um garçom ativo como responsável.
+        if funcionario.mesas.exists():
+            return Response(
+                {"erro": "Este garçom ainda é responsável por mesas. Realoque as mesas antes de inativá-lo."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        funcionario.ativo = False
+        funcionario.save(update_fields=['ativo'])
+        return Response(self.get_serializer(funcionario).data)
+
+    @action(detail=True, methods=['post'])
+    def ativar(self, request, pk=None):
+        funcionario = self.get_object()
+        funcionario.ativo = True
+        funcionario.save(update_fields=['ativo'])
+        return Response(self.get_serializer(funcionario).data)
+
+class ReservaViewSet(viewsets.ModelViewSet):
+    queryset = Reserva.objects.all()
+    serializer_class = ReservaSerializer
+    permission_classes = [SomenteGerente]
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            reserva = self.get_object()
+            reserva.delete()
+            return Response(
+                {"mensagem": "Reserva cancelada com sucesso!"}, 
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response({"erro": "Reserva não encontrada ou já removida."}, status=status.HTTP_404_NOT_FOUND)
+        
 class MesaViewSet(viewsets.ModelViewSet):
     queryset = Mesa.objects.all()
     serializer_class = MesaSerializer
+    permission_classes = [SomenteGerente]
 
+    def perform_create(self, serializer):
+        serializer.save(gerente=self.request.user)
 
+    def destroy(self, request, *args, **kwargs):
+        mesa = self.get_object()
+
+        if mesa.comandas.filter(ativa=True).exists():
+            return Response(
+                 {"erro": "Não é possivel excluir esta mesa pois ela possui uma comanda ativa em andamento."},
+                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return super().destroy(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        mesa = self.get_object()
+        novo_status = request.data.get('status')
+
+        if novo_status == Mesa.Status.INATIVA:
+            if mesa.comandas.filter(ativa=True).exists():
+                return Response(
+                    {"erro": "Não é possível inativa esta mesa pois ela possui uma comanda ativa."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return super().update(request, *args, **kwargs)
+
+    @action(detail=True, methods=['POST'])
+    def reservar(self, request, pk=None):
+        mesa = self.get_object()
+
+        # Verifica se a mesa já não está ocupada ou inativa
+        if mesa.status == 'INATIVA':
+            return Response(
+                {"erro": f"Não é possível reservar. A mesa está com status {mesa.status}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        data_reserva_str = request.data.get('data_reserva')
+        # localdate usa o fuso do bar; now().date() usaria UTC e viraria o dia às 21h.
+        hoje_str = timezone.localdate().isoformat()
+
+        if (mesa.status == Mesa.Status.AGRUPADA or mesa.mesa_agrupada is not None) and data_reserva_str == hoje_str:
+            return Response(
+                {"erro": f"A Mesa #{mesa.id} está agrupada à Mesa #{mesa.mesa_agrupada_id}. Faça a reserva diretamente na mesa principal."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+       
+        # Passa o ID da mesa no contexto para a validação de conflito
+        serializer = ReservaSerializer(data=request.data, context={'mesa_id': mesa.id})
+
+        if serializer.is_valid():
+            # Salva a reserva vinculando à mesa atual
+            serializer.save(mesa=mesa)
+
+            return Response({"mensagem": "Reserva criada com sucesso!"}, status=status.HTTP_201_CREATED)
+        
+        # Erro: a validação de data no passado ou campo obrigatório falhou
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['POST'])
+    def juntar(self, request, pk=None):
+        mesa_principal = self.get_object()
+        mesas_ids = request.data.get('mesas_ids', []) # O front vai enviar um array: [2, 3]
+
+        # Valida as mesas, vincula à principal e muda o status para AGRUPADA
+        juntar_mesas(mesa_principal, mesas_ids)
+
+        return Response(
+            {"mensagem": f"Mesas agrupadas com sucesso à Mesa {mesa_principal.id}!"}, 
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['POST'])
+    def separar(self, request, pk=None):
+        mesa_principal = self.get_object()
+        
+        mesas_filhas = mesa_principal.mesas_agrupadas.all()
+        if not mesas_filhas.exists():
+            return Response(
+                {"erro": "Esta mesa não possui outras mesas agrupadas a ela."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Libera as mesas filhas, tirando o vínculo e voltando para LIVRE
+        mesas_filhas.update(mesa_agrupada=None, status=Mesa.Status.LIVRE)
+
+        return Response({"mensagem": "Mesas separadas com sucesso!"}, status=status.HTTP_200_OK)
+    
 class CozinhaViewSet(viewsets.ModelViewSet):
     queryset = Cozinha.objects.all()
     serializer_class = CozinhaSerializer
+    permission_classes = [SomenteGerente]
 
 class PromocaoViewSet(viewsets.ModelViewSet):
     # Consulta somente promoções não removidas e carrega seus itens e categorias.
@@ -249,7 +447,7 @@ class PromocaoViewSet(viewsets.ModelViewSet):
     ).prefetch_related("itens_promocao__item__categoria")
 
     serializer_class = PromocaoSerializer
-    permission_classes = [PermissoesPromocao]
+    permission_classes = [SomenteGerente]
 
     def get_serializer_context(self):
         # Acrescenta o horário atual ao contexto padrão do serializer.
@@ -261,14 +459,53 @@ class PromocaoViewSet(viewsets.ModelViewSet):
         # Executa a remoção lógica por meio da função de serviço.
         remover_promocao(promocao_id=instance.pk)
 
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def ativas(self, request):
+        agora = timezone.now()
+        
+        promocoes_vigentes = self.get_queryset().filter(
+            data_inicio__lte=agora,
+            data_fim__gte=agora
+        )
+        
+        serializer = self.get_serializer(
+            promocoes_vigentes, 
+            many=True, 
+            context=self.get_serializer_context()
+        )
+        return Response(serializer.data)
+    
+# Tipo de produto que cada setor pode marcar como disponível ou indisponível.
+TIPO_POR_CARGO = {
+    Funcionario.Cargo.COZINHA: Categoria.TipoCategoria.PRATO,
+    Funcionario.Cargo.BAR: Categoria.TipoCategoria.BEBIDA,
+}
+
+
 class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.select_related('categoria')
     serializer_class = ItemCardapioSerializer
-    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
-    
+    permission_classes = [GerenteOuLeitura]
 
     def perform_create(self, serializer):
         serializer.save(gerente=self.request.user)
+
+    # Gerente, cozinha e bar marcam o item como disponível ou indisponível.
+    @action(detail=True, methods=['patch'], permission_classes=[PodeAlterarDisponibilidade])
+    def disponibilidade(self, request, pk=None):
+        item = self.get_object()
+
+        # A cozinha só altera pratos e o bar só altera bebidas; o gerente altera tudo.
+        tipo_do_setor = TIPO_POR_CARGO.get(cargo_de(request.user))
+        if tipo_do_setor and item.categoria.tipo_categoria != tipo_do_setor:
+            raise PermissionDenied('Este produto não pertence ao seu setor.')
+
+        dados = DisponibilidadeItemSerializer(data=request.data)
+        dados.is_valid(raise_exception=True)
+
+        item.disponivel = dados.validated_data['disponivel']
+        item.save(update_fields=['disponivel'])
+        return Response(self.get_serializer(item).data)
 
     def destroy(self, request, *args, **kwargs):
         try:
@@ -361,11 +598,21 @@ class ItemViewSet(viewsets.ModelViewSet):
 class ItensPromocaoViewSet(viewsets.ModelViewSet):
     queryset = ItensPromocao.objects.all()
     serializer_class = ItensPromocaoSerializer
+    permission_classes = [SomenteGerente]
 
 
-class SolicitacaoViewSet(viewsets.ModelViewSet):
+# O cliente cria a solicitação pelo tablet, sem login; o garçom lista e atende.
+# Editar e excluir não existem, por isso não é um ModelViewSet completo.
+class SolicitacaoViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
+                         mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Solicitacao.objects.select_related('comanda__mesa').all()
     serializer_class = SolicitacaoSerializer
+    permission_classes = [PermissaoDoCargo]
+    permissoes_por_metodo = {
+        "POST": SEM_LOGIN,
+        "GET": "ver_solicitacoes",
+        "PATCH": "atender_solicitacoes",
+    }
 
     def get_queryset(self):
         #Permite consultar solicitações com determinado status
@@ -527,6 +774,27 @@ class ConfirmarPagamentoView(APIView):
             },
             status=status.HTTP_200_OK
         )
+def dados_do_usuario(usuario):
+    # Dados que o front usa para saber quem entrou e para onde levar.
+    return {
+        "id": usuario.id,
+        "nome": usuario.nome,
+        "cargo": cargo_de(usuario),
+    }
+
+
+class SessaoView(APIView):
+    # Informa ao front quem está logado, antes de abrir as telas internas.
+    def get(self, request):
+        if cargo_de(request.user) is None:
+            return Response(
+                {"erro": "Faça login para continuar."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        return Response({"usuario": dados_do_usuario(request.user)})
+
+
 class LogoutView(APIView):
     def post(self, request):
         logout(request)
@@ -537,20 +805,158 @@ class LoginView(APIView):
     def post(self, request):
         cpf = request.data.get('cpf')
         senha = request.data.get('senha')
-        user = authenticate(request, username=cpf, password=senha)
-        if user is None:
-            return Response(
-                {"erro": "Credenciais inválidas"}, 
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-        login(request, user)
-        
-        return Response(
-            {"mensagem": "Login realizado com sucesso.",
-            "gerente": {
-                "id" : user.id,
-                "nome" : user.nome,
-                },
-            }, 
-            status=status.HTTP_200_OK
+
+        # Gerente e funcionários entram pela mesma tela, com CPF e senha.
+        usuario = entrar_como_gerente(request, cpf, senha)
+
+        if usuario is None:
+            usuario = buscar_funcionario(cpf, senha)
+
+            if usuario is None:
+                return Response(
+                    {"erro": "CPF ou senha inválidos."},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+
+            if not usuario.ativo:
+                return Response(
+                    {"erro": "Este usuário está inativo. Procure o gerente."},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+
+            entrar_como_funcionario(request, usuario)
+
+        return Response({
+            "mensagem": "Login realizado com sucesso.",
+            "usuario": dados_do_usuario(usuario),
+        })
+
+
+class ComandasGarcomView(APIView):
+    # Comandas abertas no painel do garçom.
+    permission_classes = [PermissaoDoCargo]
+    permissoes_por_metodo = {"GET": "ver_comandas"}
+
+    def get(self, request):
+        comandas = Comanda.objects.filter(ativa=True)
+
+        # O garçom vê só as comandas das suas mesas; o gerente vê todas.
+        if cargo_de(request.user) == Funcionario.Cargo.GARCOM:
+            comandas = comandas.filter(mesa__garcom=request.user)
+
+        comandas = comandas.prefetch_related(
+            "pedidos__itens_pedido__item"
+        ).order_by("id")
+
+        serializer = ComandaConsultaSerializer(comandas, many=True)
+        return Response(serializer.data)
+
+
+class DashboardGerenteView(APIView):
+    permission_classes = [SomenteGerente]
+
+    def get(self, request):
+        filtro = FiltroDashboardSerializer(data=request.query_params)
+        filtro.is_valid(raise_exception=True)
+        data_inicio = filtro.validated_data['data_inicio']
+        data_fim = filtro.validated_data['data_fim']
+        inicio = timezone.make_aware(datetime.combine(data_inicio, time.min))
+        fim = timezone.make_aware(datetime.combine(data_fim, time.max))
+        comandas = Comanda.objects.filter(
+            Q(mesa__gerente=request.user),
+            Q(data_abertura__range=(inicio, fim)) | Q(data_fechamento__range=(inicio, fim)),
         )
+        produtos = Item.objects.filter(gerente=request.user).values_list('id', 'nome')
+        return Response(resumir_dashboard(comandas, produtos, data_inicio, data_fim))
+
+
+class RelatorioVendasView(APIView):
+    permission_classes = [SomenteGerente]
+
+    def get(self, request):
+        filtro = FiltroRelatorioSerializer(data=request.query_params)
+        filtro.is_valid(raise_exception=True)
+        dados = filtro.validated_data
+        comandas = Comanda.objects.filter(
+            mesa__gerente=request.user, ativa=False,
+            data_fechamento__range=(
+                timezone.make_aware(datetime.combine(dados['data_inicio'], time.min)),
+                timezone.make_aware(datetime.combine(dados['data_fim'], time.max)),
+            ),
+        )
+        if 'garcom' in dados:
+            comandas = comandas.filter(garcom_id=dados['garcom'])
+
+        relatorio = gerar_relatorio(
+            comandas, dados['data_inicio'], dados['data_fim'],
+            categoria=dados.get('categoria'), promocao=dados.get('promocao'),
+        )
+        nome = f"relatorio-vendas-{dados['data_inicio']}-{dados['data_fim']}"
+        formato = dados['formato']
+        if formato == 'csv':
+            resposta = HttpResponse(gerar_csv(relatorio), content_type='text/csv; charset=utf-8')
+        elif formato == 'pdf':
+            resposta = HttpResponse(gerar_pdf(relatorio), content_type='application/pdf')
+        else:
+            return Response(relatorio)
+        resposta['Content-Disposition'] = f'attachment; filename="{nome}.{formato}"'
+        return resposta
+
+
+class HistoricoComandasView(APIView):
+    # O histórico mostra CPF e telefone dos clientes: só o gerente consulta.
+    permission_classes = [SomenteGerente]
+
+    def get(self, request):
+        comandas = Comanda.objects.all()
+
+        # Captura os parâmetros
+        data_inicio = request.query_params.get('data_inicio')
+        data_fim = request.query_params.get('data_fim')
+        mesa = request.query_params.get('mesa')
+        garcom = request.query_params.get('garcom')
+
+        # APLICA OS FILTROS USANDO data_abertura
+        if data_inicio:
+            comandas = comandas.filter(data_abertura__gte=data_inicio)
+            
+        if data_fim:
+            comandas = comandas.filter(data_abertura__lte=f"{data_fim} 23:59:59") #mudar isso quando feito o fechamento da comanda
+            
+        if mesa:
+            comandas = comandas.filter(mesa__id=mesa) 
+            
+        if garcom:
+            comandas = comandas.filter(garcom__nome__icontains=garcom)
+
+        # ORDENA PELA ABERTURA MAIS RECENTE
+        comandas = comandas.order_by('-data_abertura') 
+        
+        serializer = HistoricoComandaSerializer(comandas, many=True)
+        
+        return Response(serializer.data)
+
+class RecomendacoesClienteView(APIView):
+    # Cliente consulta pelo tablet sem login, igual ao cardápio e à comanda.
+    def get(self, request):
+        itens_param = request.query_params.get('itens', '')
+
+        try:
+            itens_atuais_ids = [
+                int(item_id) for item_id in itens_param.split(',') if item_id.strip()
+            ]
+        except ValueError:
+            return Response(
+                {"erro": "Parâmetro 'itens' inválido. Envie IDs inteiros separados por vírgula."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        sugestoes = obter_sugestoes_cliente(itens_atuais_ids, limite=3)
+
+        # Usa o mesmo serializer e cálculo de preço vigente (com promoção) do cardápio.
+        contexto = {
+            "request": request,
+            "precos_atuais": obter_precos_atuais(sugestoes),
+        }
+        serializer = ItemCardapioSerializer(sugestoes, many=True, context=contexto)
+        return Response(serializer.data, status=status.HTTP_200_OK)

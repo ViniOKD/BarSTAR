@@ -1,6 +1,8 @@
 from django.db import models
 from django.db.models import CheckConstraint, Q, UniqueConstraint
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.utils import timezone
 # Create your models here.
 
 class GerenteManager(BaseUserManager):
@@ -52,35 +54,77 @@ class Gerente(AbstractUser):
 
 
 
-class Garcom(models.Model):
-    id = models.BigAutoField(primary_key=True)  # id_garcom~
+class Funcionario(models.Model):
+    """Usuário interno cadastrado pelo gerente: garçom, cozinha ou bar."""
+
+    class Cargo(models.TextChoices):
+        GARCOM = 'GARCOM', 'Garçom'
+        COZINHA = 'COZINHA', 'Cozinha'
+        BAR = 'BAR', 'Bar'
+
+    id = models.BigAutoField(primary_key=True)  # id_funcionario
     data_efetivacao = models.DateTimeField(auto_now_add=True)
     nome = models.CharField(max_length=50)
     tel = models.CharField(max_length=15, unique=True)
     cpf = models.CharField(max_length=11, unique=True)
     salario = models.DecimalField(max_digits=10, decimal_places=2)
+    cargo = models.CharField(max_length=10, choices=Cargo.choices, default=Cargo.GARCOM)
+    # Guarda somente o hash da senha. Vazio significa que o gerente ainda não definiu uma.
+    senha = models.CharField(max_length=128, blank=True, default='')
+    # Funcionário inativo continua no histórico, mas não consegue entrar no sistema.
+    ativo = models.BooleanField(default=True)
     gerente = models.ForeignKey(
         Gerente,
         on_delete=models.PROTECT,
-        related_name='garcons',
-        db_column='id_gerente',  
+        related_name='funcionarios',
+        db_column='id_gerente',
     )
 
+    # O Django REST Framework consulta este atributo para saber se há alguém logado.
+    is_authenticated = True
+
     class Meta:
-        db_table = 'garcom'
+        db_table = 'funcionario'
         ordering = ['nome']
         constraints = [
-            CheckConstraint(check=Q(salario__gte=0), name='garcom_salario_nao_negativo'),
+            CheckConstraint(check=Q(salario__gte=0), name='funcionario_salario_nao_negativo'),
         ]
 
     def __str__(self):
-        return self.nome
+        return f'{self.nome} ({self.get_cargo_display()})'
+
+    def definir_senha(self, senha):
+        self.senha = make_password(senha)
+
+    def conferir_senha(self, senha):
+        if not self.senha:
+            return False
+        return check_password(senha, self.senha)
 
 
 class Mesa(models.Model):
+    class Status(models.TextChoices):
+        LIVRE = 'LIVRE', 'Livre'
+        OCUPADA = 'OCUPADA', 'Ocupada'
+        RESERVADA = 'RESERVADA', 'Reservada'
+        INATIVA = 'INATIVA', 'Inativa'
+        AGRUPADA = 'AGRUPADA', 'Agrupada'
+
     id = models.BigAutoField(primary_key=True)  # id_mesa
-    ativo = models.BooleanField(default=True)
     capacidade = models.PositiveIntegerField()
+    status = models.CharField(
+        max_length=15,
+        choices=Status.choices,
+        default=Status.LIVRE,
+    )
+    mesa_agrupada = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='mesas_agrupadas',
+        db_column='id_mesa_agrupada',
+    )
     gerente = models.ForeignKey(
         Gerente,
         on_delete=models.PROTECT,
@@ -88,7 +132,7 @@ class Mesa(models.Model):
         db_column='id_gerente',
     )
     garcom = models.ForeignKey(
-        Garcom,
+        Funcionario,
         on_delete=models.PROTECT,
         related_name='mesas',
         db_column='id_garcom',
@@ -98,14 +142,38 @@ class Mesa(models.Model):
         db_table = 'mesa'
         ordering = ['id']
         indexes = [
-            models.Index(fields=['gerente', 'ativo']),
-            models.Index(fields=['garcom', 'ativo']),
+            models.Index(fields=['gerente', 'status']),
+            models.Index(fields=['garcom', 'status']),
         ]
 
     def __str__(self):
-        return f'Mesa {self.id} ({self.capacidade} lugares)'
+        return f'Mesa {self.id} ({self.capacidade} lugares - {self.get_status_display()})'
 
+    @property
+    def capacidade_total(self):
+        # Soma a capacidade desta mesa com a de todas as mesas filhas
+        capacidade_filhas = sum(m.capacidade for m in self.mesas_agrupadas.all())
+        return self.capacidade + capacidade_filhas
 
+    @property
+    def is_principal(self):
+        # Retorna True se existirem mesas agrupadas a ela
+        return self.mesas_agrupadas.exists()
+
+class Reserva(models.Model):
+    mesa = models.ForeignKey('Mesa', on_delete=models.CASCADE, related_name='reservas')
+    mesas_agrupadas = models.ManyToManyField(Mesa, blank=True, related_name='reservas_agrupadas')
+    
+    cliente_nome = models.CharField(max_length=150)
+    cliente_telefone = models.CharField(max_length=20, blank=True, null=True)
+    data_reserva = models.DateField()
+    hora_reserva = models.TimeField()
+    criado_em = models.DateTimeField(auto_now_add=True)
+    ativa = models.BooleanField(default=True) 
+
+    def __str__(self):
+        return f"Reserva de {self.cliente_nome} - Mesa {self.mesa.id}"
+    
 class Cozinha(models.Model):
     id = models.BigAutoField(primary_key=True)  # id_cozinha
     nome = models.CharField(max_length=50, default='Principal')
@@ -132,9 +200,24 @@ class Comanda(models.Model):
         db_column='id_mesa',
     )
 
+    # Add garçom da comanda para proteger o histórico
+    garcom = models.ForeignKey(
+        Funcionario,
+        on_delete=models.PROTECT,
+        related_name='comandas_atendidas',
+        db_column='id_garcom',
+        null=True, 
+        blank=True
+    )
     class Meta:
         db_table = 'comanda'
         ordering = ['-data_abertura']
+        # Índices para garantir consultas rápidas no histórico
+        indexes = [
+            models.Index(fields=['ativa', 'data_fechamento']),
+            models.Index(fields=['mesa']),
+            models.Index(fields=['garcom']),
+        ]
 
         # A abertura valida a comanda ativa com a mesa bloqueada na transação.
         # MySQL não suporta UniqueConstraint com condition.

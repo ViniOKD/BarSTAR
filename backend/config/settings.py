@@ -141,6 +141,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # Reconhece o gerente (login do Django) e os funcionários cadastrados por ele.
+    'DEFAULT_AUTHENTICATION_CLASSES': ['core.autenticacao.AutenticacaoFuncionario'],
 }
 
 SPECTACULAR_SETTINGS = {
